@@ -32,6 +32,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.CharBuffer;
+import java.util.Arrays;
+
 /**
  * Autenticacion. El logout lo maneja el LogoutFilter de Spring Security configurado en
  * SecurityConfig (POST /api/auth/logout), que invalida la sesion y borra las cookies.
@@ -89,10 +92,16 @@ public class AuthController {
                                 HttpServletRequest request,
                                 HttpServletResponse response) {
         String email = ServicioUsuarios.normalizarEmail(datos.email());
+        // La contrasena viaja como char[]; se borra en el finally apenas termina de usarse,
+        // en vez de quedar como String inmutable hasta que pase el GC. El wrap en CharBuffer
+        // evita crear nosotros una copia extra en String antes de pasarla a Spring Security
+        // (que internamente si hace su propia copia para comparar contra el hash: eso ya
+        // esta fuera de nuestro control).
+        char[] normalizada = PoliticaContrasena.normalizar(datos.contrasena());
         try {
             Authentication autenticacion = authenticationManager.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(
-                            email, PoliticaContrasena.normalizar(datos.contrasena())));
+                            email, CharBuffer.wrap(normalizada)));
 
             // Regenera el id de sesion y registra la sesion en el SessionRegistry (RS10).
             estrategiaSesion.onAuthentication(autenticacion, request, response);
@@ -111,6 +120,9 @@ public class AuthController {
             // RS12: queda el intento con el email, nunca la contrasena.
             auditor.loginFallido(request, email, "credenciales invalidas");
             throw new CredencialesInvalidasException();
+        } finally {
+            Arrays.fill(normalizada, '\0');
+            Arrays.fill(datos.contrasena(), '\0');
         }
     }
 

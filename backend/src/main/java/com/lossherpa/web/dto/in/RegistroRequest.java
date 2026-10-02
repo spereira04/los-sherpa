@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Pattern;
@@ -20,6 +21,9 @@ import java.time.LocalDate;
  *
  * La contrasena solo se valida de largo maximo aca; la politica completa esta en
  * PoliticaContrasena, para dar un mensaje util y no 400 generico.
+ *
+ * contrasena es char[] y no String: ServicioAutenticacion la borra de memoria apenas la usa
+ * para hashearla, en vez de dejarla como String inmutable hasta que pase el GC.
  */
 public record RegistroRequest(
 
@@ -28,9 +32,9 @@ public record RegistroRequest(
         @Size(max = 254, message = "El email es demasiado largo")
         String email,
 
-        @NotBlank(message = "La contrasena es obligatoria")
+        @NotEmpty(message = "La contrasena es obligatoria")
         @Size(max = 128, message = "La contrasena no puede superar los 128 caracteres")
-        String contrasena,
+        char[] contrasena,
 
         @NotNull(message = "Hay que elegir si te registras como entrenador o como atleta")
         RolRegistro rol,
