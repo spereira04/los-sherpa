@@ -2,8 +2,12 @@ package com.lossherpa.support;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lossherpa.domain.Rol;
+import com.lossherpa.domain.SolicitudVinculacion;
 import com.lossherpa.domain.Usuario;
+import com.lossherpa.domain.Vinculo;
+import com.lossherpa.repository.SolicitudVinculacionRepository;
 import com.lossherpa.repository.UsuarioRepository;
+import com.lossherpa.repository.VinculoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -44,11 +48,19 @@ public abstract class TestIntegracion {
     protected UsuarioRepository usuarios;
 
     @Autowired
+    protected VinculoRepository vinculos;
+
+    @Autowired
+    protected SolicitudVinculacionRepository solicitudes;
+
+    @Autowired
     protected PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void limpiarBase() {
         // Orden: primero lo que referencia, despues lo referenciado.
+        solicitudes.deleteAll();
+        vinculos.deleteAll();
         usuarios.deleteAll();
     }
 
@@ -70,6 +82,14 @@ public abstract class TestIntegracion {
     protected Usuario crearAdmin(String email) {
         return usuarios.save(new Usuario(email, passwordEncoder.encode(PASSWORD), Rol.ADMIN,
                 "Admin", "Sistema", LocalDate.of(1990, 1, 1)));
+    }
+
+    protected Vinculo crearVinculoActivo(Usuario entrenador, Usuario atleta) {
+        return vinculos.save(new Vinculo(entrenador, atleta));
+    }
+
+    protected SolicitudVinculacion crearSolicitudPendiente(Usuario atleta, Usuario entrenador) {
+        return solicitudes.save(new SolicitudVinculacion(atleta, entrenador));
     }
 
     /** Hace login de verdad por el endpoint y devuelve la sesion resultante. */
