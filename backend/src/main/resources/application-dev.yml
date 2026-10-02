@@ -1,0 +1,17 @@
+# Perfil de desarrollo. Las credenciales de ejemplo existen SOLO en este perfil.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+sherpa:
+  cors:
+    origenes: ${CORS_ORIGENES:http://localhost:5173}
+  seed:
+    habilitado: true
+    # Contrasena compartida por todos los usuarios de ejemplo. Solo para desarrollo local.
+    contrasena: ${SEED_PASSWORD:Entrenamiento2026!}
+
+logging:
+  level:
+    com.lossherpa: DEBUG
