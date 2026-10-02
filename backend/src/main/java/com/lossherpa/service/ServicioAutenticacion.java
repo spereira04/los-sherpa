@@ -9,6 +9,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.CharBuffer;
+import java.util.Arrays;
 import java.util.List;
 
 /** Registro publico. El login lo resuelve el AuthenticationManager en el controlador. */
@@ -43,9 +45,18 @@ public class ServicioAutenticacion {
                 List.of(email, datos.nombre(), datos.apellido()));
         ServicioUsuarios.validarCamposPorRol(rol, datos.pesoKg(), datos.aniosServicio());
 
+        char[] normalizada = PoliticaContrasena.normalizar(datos.contrasena());
+        String hash;
+        try {
+            hash = passwordEncoder.encode(CharBuffer.wrap(normalizada));
+        } finally {
+            Arrays.fill(normalizada, '\0');
+            Arrays.fill(datos.contrasena(), '\0');
+        }
+
         Usuario usuario = new Usuario(
                 email,
-                passwordEncoder.encode(PoliticaContrasena.normalizar(datos.contrasena())),
+                hash,
                 rol,
                 datos.nombre().trim(),
                 datos.apellido().trim(),
