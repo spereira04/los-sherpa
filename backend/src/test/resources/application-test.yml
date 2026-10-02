@@ -1,0 +1,32 @@
+# Perfil de test: base SQLite en memoria, sin seed y sin admin por entorno.
+spring:
+  datasource:
+    # SQLite en memoria con cache compartida: mismo dialecto que produccion, sin disco.
+    url: jdbc:sqlite:file:sherpa-test?mode=memory&cache=shared
+    hikari:
+      maximum-pool-size: 1
+      minimum-idle: 1
+      # La base vive mientras haya una conexion abierta: no se recicla.
+      max-lifetime: 0
+      idle-timeout: 0
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+server:
+  servlet:
+    session:
+      cookie:
+        secure: false
+sherpa:
+  seguridad:
+    # Solo en tests: a costo 12 cada hash tarda ~0,7 s y la suite se vuelve inusable.
+    # El default de la app sigue siendo 12 (lo verifica SeguridadDeProduccionTest).
+    costo-bcrypt: 4
+  cors:
+    origenes: http://localhost:5173
+  seed:
+    habilitado: false
+logging:
+  level:
+    root: WARN
+    com.lossherpa: INFO
