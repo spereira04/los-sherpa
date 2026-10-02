@@ -1,0 +1,32 @@
+# Documentacion personal, no versionada
+IMPLEMENTACION.md
+
+# Base de datos (fuera de cualquier directorio servido)
+data/
+*.db
+*.db-journal
+
+# Logs (RS17: fuera de cualquier directorio servido)
+logs/
+*.log
+
+# Backend
+backend/target/
+backend/src/main/resources/static/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# Entorno / secretos (RS14)
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
