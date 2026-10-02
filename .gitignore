@@ -2,7 +2,6 @@
 IMPLEMENTACION.md
 
 # Base de datos (fuera de cualquier directorio servido)
-data/
 *.db
 *.db-journal
 
