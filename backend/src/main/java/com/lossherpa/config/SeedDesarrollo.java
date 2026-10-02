@@ -23,7 +23,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.CharBuffer;
 import java.time.LocalDate;
+import java.util.Arrays;
 
 /**
  * Datos de ejemplo.
@@ -49,7 +51,7 @@ public class SeedDesarrollo implements ApplicationRunner {
     private final RutinaRepository rutinas;
     private final EjecucionRepository ejecuciones;
     private final PasswordEncoder passwordEncoder;
-    private final String contrasena;
+    private final char[] contrasena;
 
     public SeedDesarrollo(UsuarioRepository usuarios, VinculoRepository vinculos,
                           SolicitudVinculacionRepository solicitudes, RutinaRepository rutinas,
@@ -61,7 +63,11 @@ public class SeedDesarrollo implements ApplicationRunner {
         this.rutinas = rutinas;
         this.ejecuciones = ejecuciones;
         this.passwordEncoder = passwordEncoder;
-        this.contrasena = contrasena;
+        // Spring solo puede resolver @Value como String (la variable de entorno ya es texto
+        // antes de llegar aca, eso esta fuera de nuestro control): se convierte a char[] de
+        // una y no se guarda la referencia al String para no retenerlo en un campo de larga
+        // vida del bean.
+        this.contrasena = contrasena.toCharArray();
     }
 
     @Override
@@ -73,81 +79,87 @@ public class SeedDesarrollo implements ApplicationRunner {
             return;
         }
 
-        Usuario lucia = entrenador("lucia.ferreyra@sherpa.dev", "Lucia", "Ferreyra", 1986, 11,
-                "Fuerza y acondicionamiento general. Preparacion para medias maratones.");
-        Usuario marcos = entrenador("marcos.quiroga@sherpa.dev", "Marcos", "Quiroga", 1979, 18,
-                "Powerlifting y tecnica de los tres movimientos.");
-        Usuario sofia = entrenador("sofia.benitez@sherpa.dev", "Sofia", "Benitez", 1992, 6,
-                "Entrenamiento funcional y movilidad.");
+        try {
+            Usuario lucia = entrenador("lucia.ferreyra@sherpa.dev", "Lucia", "Ferreyra", 1986, 11,
+                    "Fuerza y acondicionamiento general. Preparacion para medias maratones.");
+            Usuario marcos = entrenador("marcos.quiroga@sherpa.dev", "Marcos", "Quiroga", 1979, 18,
+                    "Powerlifting y tecnica de los tres movimientos.");
+            Usuario sofia = entrenador("sofia.benitez@sherpa.dev", "Sofia", "Benitez", 1992, 6,
+                    "Entrenamiento funcional y movilidad.");
 
-        Usuario ana = atleta("ana.suarez@sherpa.dev", "Ana", "Suarez", 1998, 64.0,
-                "Corro 10k y quiero mejorar fuerza de piernas.");
-        Usuario bruno = atleta("bruno.medina@sherpa.dev", "Bruno", "Medina", 1995, 82.5,
-                "Vuelvo despues de una lesion de hombro.");
-        Usuario carla = atleta("carla.rios@sherpa.dev", "Carla", "Rios", 2001, 57.0,
-                "Primera vez en un gimnasio.");
-        Usuario diego = atleta("diego.alvarez@sherpa.dev", "Diego", "Alvarez", 1990, 90.0,
-                "Busco ganar masa muscular.");
-        Usuario elena = atleta("elena.cabrera@sherpa.dev", "Elena", "Cabrera", 2003, 61.0,
-                "Entreno para jugar al hockey.");
+            Usuario ana = atleta("ana.suarez@sherpa.dev", "Ana", "Suarez", 1998, 64.0,
+                    "Corro 10k y quiero mejorar fuerza de piernas.");
+            Usuario bruno = atleta("bruno.medina@sherpa.dev", "Bruno", "Medina", 1995, 82.5,
+                    "Vuelvo despues de una lesion de hombro.");
+            Usuario carla = atleta("carla.rios@sherpa.dev", "Carla", "Rios", 2001, 57.0,
+                    "Primera vez en un gimnasio.");
+            Usuario diego = atleta("diego.alvarez@sherpa.dev", "Diego", "Alvarez", 1990, 90.0,
+                    "Busco ganar masa muscular.");
+            Usuario elena = atleta("elena.cabrera@sherpa.dev", "Elena", "Cabrera", 2003, 61.0,
+                    "Entreno para jugar al hockey.");
 
-        // --- Vinculos activos ---
-        Vinculo vinculoAna = vinculos.save(new Vinculo(lucia, ana));
-        vinculos.save(new Vinculo(lucia, bruno));
-        vinculos.save(new Vinculo(marcos, diego));
+            // --- Vinculos activos ---
+            Vinculo vinculoAna = vinculos.save(new Vinculo(lucia, ana));
+            vinculos.save(new Vinculo(lucia, bruno));
+            vinculos.save(new Vinculo(marcos, diego));
 
-        // --- Vinculo finalizado: queda en el historial de exatletas de Marcos ---
-        Vinculo terminado = vinculos.save(new Vinculo(marcos, elena));
-        terminado.cerrar(LocalDate.now().minusDays(20));
+            // --- Vinculo finalizado: queda en el historial de exatletas de Marcos ---
+            Vinculo terminado = vinculos.save(new Vinculo(marcos, elena));
+            terminado.cerrar(LocalDate.now().minusDays(20));
 
-        // --- Solicitudes: Carla tiene dos pendientes, a Sofia y a Marcos ---
-        solicitudes.save(new SolicitudVinculacion(carla, sofia));
-        solicitudes.save(new SolicitudVinculacion(carla, marcos));
+            // --- Solicitudes: Carla tiene dos pendientes, a Sofia y a Marcos ---
+            solicitudes.save(new SolicitudVinculacion(carla, sofia));
+            solicitudes.save(new SolicitudVinculacion(carla, marcos));
 
-        // --- Rutinas asignadas ---
-        Rutina fuerzaAna = rutinas.save(rutinaAsignada(lucia, ana, "Fuerza de piernas",
-                new String[] {"Sentadilla", "Prensa", "Zancadas"},
-                new int[] {4, 3, 3}, new int[] {8, 12, 12}));
-        Rutina tironBruno = rutinas.save(rutinaAsignada(lucia, bruno, "Tren superior suave",
-                new String[] {"Remo con mancuerna", "Press militar"},
-                new int[] {3, 3}, new int[] {12, 10}));
-        rutinas.save(rutinaAsignada(marcos, diego, "Banco y espalda",
-                new String[] {"Banco plano", "Dominadas", "Remo con barra"},
-                new int[] {5, 4, 3}, new int[] {5, 6, 8}));
+            // --- Rutinas asignadas ---
+            Rutina fuerzaAna = rutinas.save(rutinaAsignada(lucia, ana, "Fuerza de piernas",
+                    new String[] {"Sentadilla", "Prensa", "Zancadas"},
+                    new int[] {4, 3, 3}, new int[] {8, 12, 12}));
+            Rutina tironBruno = rutinas.save(rutinaAsignada(lucia, bruno, "Tren superior suave",
+                    new String[] {"Remo con mancuerna", "Press militar"},
+                    new int[] {3, 3}, new int[] {12, 10}));
+            rutinas.save(rutinaAsignada(marcos, diego, "Banco y espalda",
+                    new String[] {"Banco plano", "Dominadas", "Remo con barra"},
+                    new int[] {5, 4, 3}, new int[] {5, 6, 8}));
 
-        // Rutina que Elena conserva de cuando la entrenaba Marcos.
-        rutinas.save(rutinaAsignada(marcos, elena, "Base de fuerza",
-                new String[] {"Peso muerto", "Sentadilla"},
-                new int[] {3, 3}, new int[] {6, 8}));
+            // Rutina que Elena conserva de cuando la entrenaba Marcos.
+            rutinas.save(rutinaAsignada(marcos, elena, "Base de fuerza",
+                    new String[] {"Peso muerto", "Sentadilla"},
+                    new int[] {3, 3}, new int[] {6, 8}));
 
-        // --- Rutinas propias: el entrenador NO las ve ---
-        Rutina cardioAna = rutinas.save(rutinaPropia(ana, "Cardio de los martes",
-                new String[] {"Cinta", "Eliptica"},
-                new int[] {1, 1}, new int[] {30, 20}));
-        rutinas.save(rutinaPropia(diego, "Abdominales en casa",
-                new String[] {"Plancha", "Crunch"},
-                new int[] {3, 3}, new int[] {45, 20}));
+            // --- Rutinas propias: el entrenador NO las ve ---
+            Rutina cardioAna = rutinas.save(rutinaPropia(ana, "Cardio de los martes",
+                    new String[] {"Cinta", "Eliptica"},
+                    new int[] {1, 1}, new int[] {30, 20}));
+            rutinas.save(rutinaPropia(diego, "Abdominales en casa",
+                    new String[] {"Plancha", "Crunch"},
+                    new int[] {3, 3}, new int[] {45, 20}));
 
-        // --- Ejecuciones: varias de la misma rutina, con progresion de cargas ---
-        registrar(fuerzaAna, LocalDate.now().minusDays(21), 40);
-        registrar(fuerzaAna, LocalDate.now().minusDays(14), 45);
-        registrar(fuerzaAna, LocalDate.now().minusDays(7), 47.5);
-        registrar(fuerzaAna, LocalDate.now().minusDays(1), 50);
-        registrar(tironBruno, LocalDate.now().minusDays(5), 12);
-        registrar(tironBruno, LocalDate.now().minusDays(2), 14);
-        // Ejecucion de una rutina propia: no tiene que aparecerle a Lucia.
-        registrar(cardioAna, LocalDate.now().minusDays(3), 0);
+            // --- Ejecuciones: varias de la misma rutina, con progresion de cargas ---
+            registrar(fuerzaAna, LocalDate.now().minusDays(21), 40);
+            registrar(fuerzaAna, LocalDate.now().minusDays(14), 45);
+            registrar(fuerzaAna, LocalDate.now().minusDays(7), 47.5);
+            registrar(fuerzaAna, LocalDate.now().minusDays(1), 50);
+            registrar(tironBruno, LocalDate.now().minusDays(5), 12);
+            registrar(tironBruno, LocalDate.now().minusDays(2), 14);
+            // Ejecucion de una rutina propia: no tiene que aparecerle a Lucia.
+            registrar(cardioAna, LocalDate.now().minusDays(3), 0);
 
-        LOG.info("Seed de desarrollo cargado: {} usuarios, {} rutinas, {} ejecuciones. "
-                        + "Vinculo de ejemplo desde {}",
-                usuarios.count(), rutinas.count(), ejecuciones.count(),
-                vinculoAna.getFechaInicio());
+            LOG.info("Seed de desarrollo cargado: {} usuarios, {} rutinas, {} ejecuciones. "
+                            + "Vinculo de ejemplo desde {}",
+                    usuarios.count(), rutinas.count(), ejecuciones.count(),
+                    vinculoAna.getFechaInicio());
+        } finally {
+            // La contrasena compartida ya no hace falta despues de sembrar: se borra del
+            // array en vez de dejarla viva como referencia String hasta que pase el GC.
+            Arrays.fill(contrasena, '\0');
+        }
     }
 
     private Usuario entrenador(String email, String nombre, String apellido, int anioNacimiento,
                                int aniosServicio, String descripcion) {
-        Usuario usuario = new Usuario(email, passwordEncoder.encode(contrasena), Rol.ENTRENADOR,
-                nombre, apellido, LocalDate.of(anioNacimiento, 4, 15));
+        Usuario usuario = new Usuario(email, passwordEncoder.encode(CharBuffer.wrap(contrasena)),
+                Rol.ENTRENADOR, nombre, apellido, LocalDate.of(anioNacimiento, 4, 15));
         usuario.setAniosServicio(aniosServicio);
         usuario.setDescripcion(descripcion);
         return usuarios.save(usuario);
@@ -155,8 +167,8 @@ public class SeedDesarrollo implements ApplicationRunner {
 
     private Usuario atleta(String email, String nombre, String apellido, int anioNacimiento,
                            double pesoKg, String descripcion) {
-        Usuario usuario = new Usuario(email, passwordEncoder.encode(contrasena), Rol.ATLETA,
-                nombre, apellido, LocalDate.of(anioNacimiento, 9, 3));
+        Usuario usuario = new Usuario(email, passwordEncoder.encode(CharBuffer.wrap(contrasena)),
+                Rol.ATLETA, nombre, apellido, LocalDate.of(anioNacimiento, 9, 3));
         usuario.setPesoKg(pesoKg);
         usuario.setDescripcion(descripcion);
         return usuarios.save(usuario);

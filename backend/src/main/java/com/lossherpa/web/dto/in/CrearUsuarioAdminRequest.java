@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Pattern;
@@ -19,6 +20,9 @@ import java.time.LocalDate;
  * Usa el mismo tipo RolRegistro que el registro publico, que no incluye ADMIN: el admin
  * tampoco puede crear otros admins. El unico camino para un admin son las variables de
  * entorno al arrancar (CreadorAdminInicial).
+ *
+ * contrasena es char[] y no String, igual que en RegistroRequest (ver ese record para el
+ * motivo): se borra de memoria apenas ServicioAutenticacion la usa para hashearla.
  */
 public record CrearUsuarioAdminRequest(
 
@@ -27,9 +31,9 @@ public record CrearUsuarioAdminRequest(
         @Size(max = 254, message = "El email es demasiado largo")
         String email,
 
-        @NotBlank(message = "La contrasena es obligatoria")
+        @NotEmpty(message = "La contrasena es obligatoria")
         @Size(max = 128, message = "La contrasena no puede superar los 128 caracteres")
-        String contrasena,
+        char[] contrasena,
 
         @NotNull(message = "Hay que elegir entrenador o atleta")
         RolRegistro rol,

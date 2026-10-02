@@ -14,7 +14,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.CharBuffer;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -36,7 +38,7 @@ public class CreadorAdminInicial implements ApplicationRunner {
     private final PasswordEncoder passwordEncoder;
     private final PoliticaContrasena politicaContrasena;
     private final String email;
-    private final String password;
+    private final char[] password;
     private final String nombre;
     private final String apellido;
 
@@ -51,7 +53,11 @@ public class CreadorAdminInicial implements ApplicationRunner {
         this.passwordEncoder = passwordEncoder;
         this.politicaContrasena = politicaContrasena;
         this.email = email;
-        this.password = password;
+        // Spring solo puede resolver @Value como String (la variable de entorno ya es texto
+        // antes de llegar aca, eso esta fuera de nuestro control): se convierte a char[] de
+        // una y no se guarda la referencia al String para no retenerlo en un campo de larga
+        // vida del bean.
+        this.password = password.toCharArray();
         this.nombre = nombre;
         this.apellido = apellido;
     }
@@ -59,7 +65,7 @@ public class CreadorAdminInicial implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (email.isBlank() || password.isBlank()) {
+        if (email.isBlank() || password.length == 0) {
             LOG.info("ADMIN_EMAIL o ADMIN_PASSWORD sin definir: no se crea ningun admin");
             return;
         }
@@ -80,9 +86,18 @@ public class CreadorAdminInicial implements ApplicationRunner {
                     + " ADMIN_EMAIL, ni ADMIN_NOMBRE, ni ADMIN_APELLIDO.", e);
         }
 
+        char[] normalizada = PoliticaContrasena.normalizar(password);
+        String hash;
+        try {
+            hash = passwordEncoder.encode(CharBuffer.wrap(normalizada));
+        } finally {
+            Arrays.fill(normalizada, '\0');
+            Arrays.fill(password, '\0');
+        }
+
         Usuario admin = new Usuario(
                 email.trim().toLowerCase(),
-                passwordEncoder.encode(PoliticaContrasena.normalizar(password)),
+                hash,
                 Rol.ADMIN,
                 nombre,
                 apellido,
