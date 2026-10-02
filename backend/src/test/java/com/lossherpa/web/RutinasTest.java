@@ -118,6 +118,21 @@ class RutinasTest extends TestIntegracion {
     }
 
     @Test
+    @DisplayName("IDOR: el atleta no puede completar la rutina de otro atleta")
+    void noCompletaRutinaAjena() throws Exception {
+        Rutina ajena = crearRutinaPropia(otroAtleta, "Rutina de Caro");
+        MockHttpSession sesion = iniciarSesion("ana@test.com");
+
+        mvc.perform(post("/api/atleta/rutinas/" + ajena.getId() + "/ejecuciones")
+                        .with(csrf()).session(sesion)
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(cuerpoEjecucion(ajena, java.time.LocalDate.now(), 40))))
+                .andExpect(status().isNotFound());
+
+        assertThat(ejecuciones.count()).isZero();
+    }
+
+    @Test
     @DisplayName("una rutina inexistente da 404, igual que una ajena")
     void rutinaInexistente() throws Exception {
         MockHttpSession sesion = iniciarSesion("ana@test.com");

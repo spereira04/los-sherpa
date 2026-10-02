@@ -1,11 +1,13 @@
 package com.lossherpa.support;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lossherpa.domain.Ejecucion;
 import com.lossherpa.domain.Rol;
 import com.lossherpa.domain.Rutina;
 import com.lossherpa.domain.SolicitudVinculacion;
 import com.lossherpa.domain.Usuario;
 import com.lossherpa.domain.Vinculo;
+import com.lossherpa.repository.EjecucionRepository;
 import com.lossherpa.repository.RutinaRepository;
 import com.lossherpa.repository.SolicitudVinculacionRepository;
 import com.lossherpa.repository.UsuarioRepository;
@@ -21,6 +23,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -59,11 +63,15 @@ public abstract class TestIntegracion {
     protected RutinaRepository rutinas;
 
     @Autowired
+    protected EjecucionRepository ejecuciones;
+
+    @Autowired
     protected PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void limpiarBase() {
         // Orden: primero lo que referencia, despues lo referenciado.
+        ejecuciones.deleteAll();
         rutinas.deleteAll();
         solicitudes.deleteAll();
         vinculos.deleteAll();
@@ -109,6 +117,31 @@ public abstract class TestIntegracion {
         Rutina rutina = Rutina.propia(nombre, atleta);
         rutina.agregarEjercicio("Dominadas", 2, 6);
         return rutinas.save(rutina);
+    }
+
+    /** Ejecucion completa de una rutina, con una carga fija en cada serie. */
+    protected Ejecucion crearEjecucion(Rutina rutina, LocalDate fecha, double cargaKg) {
+        Ejecucion ejecucion = new Ejecucion(rutina, fecha);
+        rutina.getEjercicios().forEach(ejercicio -> {
+            for (int nro = 1; nro <= ejercicio.getSeries(); nro++) {
+                ejecucion.registrarSerie(ejercicio, nro, cargaKg);
+            }
+        });
+        return ejecuciones.save(ejecucion);
+    }
+
+    /** Body valido para completar una rutina: todas sus series con la misma carga. */
+    protected Map<String, Object> cuerpoEjecucion(Rutina rutina, LocalDate fecha, double cargaKg) {
+        List<Map<String, Object>> series = new ArrayList<>();
+        rutina.getEjercicios().forEach(ejercicio -> {
+            for (int nro = 1; nro <= ejercicio.getSeries(); nro++) {
+                series.add(Map.of(
+                        "idEjercicio", ejercicio.getId().toString(),
+                        "nroSerie", nro,
+                        "cargaKg", cargaKg));
+            }
+        });
+        return Map.of("fecha", fecha.toString(), "series", series);
     }
 
     /** Hace login de verdad por el endpoint y devuelve la sesion resultante. */
