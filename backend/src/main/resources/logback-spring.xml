@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  RS17 - Proteccion de logs.
+  - Los archivos se escriben en ${LOG_DIR} (por defecto ./logs), fuera de
+    src/main/resources/static, que es el unico directorio servido.
+  - El logger AUDITORIA emite una linea JSON por evento y va a su propio archivo.
+  - Los datos de usuario pasan antes por SanitizadorLog (sin \r\n ni caracteres de control).
+  - No se loguea SQL con parametros, ni cuerpos de request, ni cabeceras.
+-->
+<configuration>
+  <property name="LOG_DIR" value="${LOG_DIR:-logs}"/>
+  <property name="PATRON_APP"
+            value="%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] %logger{36} - %msg%n"/>
+
+  <appender name="CONSOLA" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>${PATRON_APP}</pattern>
+    </encoder>
+  </appender>
+
+  <appender name="ARCHIVO_APP" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${LOG_DIR}/app.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>${LOG_DIR}/app.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <maxHistory>14</maxHistory>
+    </rollingPolicy>
+    <encoder>
+      <pattern>${PATRON_APP}</pattern>
+    </encoder>
+  </appender>
+
+  <!-- RS12: el evento ya viene armado como JSON, el appender no agrega nada alrededor. -->
+  <appender name="ARCHIVO_AUDITORIA" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${LOG_DIR}/auditoria.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>${LOG_DIR}/auditoria.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <maxHistory>90</maxHistory>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <logger name="AUDITORIA" level="INFO" additivity="false">
+    <appender-ref ref="ARCHIVO_AUDITORIA"/>
+    <appender-ref ref="CONSOLA"/>
+  </logger>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLA"/>
+    <appender-ref ref="ARCHIVO_APP"/>
+  </root>
+</configuration>
