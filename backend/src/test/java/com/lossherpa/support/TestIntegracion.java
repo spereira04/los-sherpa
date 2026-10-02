@@ -2,9 +2,11 @@ package com.lossherpa.support;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lossherpa.domain.Rol;
+import com.lossherpa.domain.Rutina;
 import com.lossherpa.domain.SolicitudVinculacion;
 import com.lossherpa.domain.Usuario;
 import com.lossherpa.domain.Vinculo;
+import com.lossherpa.repository.RutinaRepository;
 import com.lossherpa.repository.SolicitudVinculacionRepository;
 import com.lossherpa.repository.UsuarioRepository;
 import com.lossherpa.repository.VinculoRepository;
@@ -54,11 +56,15 @@ public abstract class TestIntegracion {
     protected SolicitudVinculacionRepository solicitudes;
 
     @Autowired
+    protected RutinaRepository rutinas;
+
+    @Autowired
     protected PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void limpiarBase() {
         // Orden: primero lo que referencia, despues lo referenciado.
+        rutinas.deleteAll();
         solicitudes.deleteAll();
         vinculos.deleteAll();
         usuarios.deleteAll();
@@ -90,6 +96,19 @@ public abstract class TestIntegracion {
 
     protected SolicitudVinculacion crearSolicitudPendiente(Usuario atleta, Usuario entrenador) {
         return solicitudes.save(new SolicitudVinculacion(atleta, entrenador));
+    }
+
+    protected Rutina crearRutinaAsignada(Usuario entrenador, Usuario atleta, String nombre) {
+        Rutina rutina = Rutina.asignada(nombre, atleta, entrenador);
+        rutina.agregarEjercicio("Sentadilla", 2, 10);
+        rutina.agregarEjercicio("Peso muerto", 1, 8);
+        return rutinas.save(rutina);
+    }
+
+    protected Rutina crearRutinaPropia(Usuario atleta, String nombre) {
+        Rutina rutina = Rutina.propia(nombre, atleta);
+        rutina.agregarEjercicio("Dominadas", 2, 6);
+        return rutinas.save(rutina);
     }
 
     /** Hace login de verdad por el endpoint y devuelve la sesion resultante. */
