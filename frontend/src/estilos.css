@@ -1,0 +1,133 @@
+/* Estilo simple y prolijo, sin librerias de UI. */
+:root {
+  --fondo: #f5f6f8;
+  --superficie: #ffffff;
+  --borde: #d9dde3;
+  --texto: #1d2430;
+  --texto-suave: #5d6878;
+  --acento: #1f6f54;
+  --acento-suave: #e7f1ed;
+  --error: #a4262c;
+  --error-suave: #fdeaea;
+  --ok: #1f6f54;
+  --radio: 8px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+h1, h2, h3 { margin: 0 0 0.6rem; line-height: 1.25; }
+h1 { font-size: 1.5rem; }
+h2 { font-size: 1.15rem; }
+h3 { font-size: 1rem; }
+
+a { color: var(--acento); }
+
+/* --- estructura --- */
+.encabezado {
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borde);
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+.encabezado .marca { font-weight: 700; font-size: 1.05rem; }
+.encabezado nav { display: flex; gap: 1rem; flex-wrap: wrap; }
+.encabezado nav a { text-decoration: none; color: var(--texto-suave); padding: 0.2rem 0; }
+.encabezado nav a.activo { color: var(--acento); font-weight: 600; border-bottom: 2px solid var(--acento); }
+.encabezado .usuario { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; color: var(--texto-suave); }
+
+.contenido { max-width: 960px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.contenido-angosto { max-width: 440px; margin: 3rem auto; padding: 0 1.25rem; }
+
+/* --- tarjetas --- */
+.tarjeta {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  padding: 1.1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.tarjeta-encabezado {
+  display: flex; align-items: center; gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+.tarjeta-encabezado h2 { margin: 0; }
+.tarjeta-encabezado > :last-child { margin-left: auto; }
+
+/* --- formularios --- */
+.campo { display: block; margin-bottom: 0.9rem; }
+.campo-etiqueta { display: block; font-size: 0.85rem; color: var(--texto-suave); margin-bottom: 0.25rem; }
+.campo-error { display: block; color: var(--error); font-size: 0.8rem; margin-top: 0.2rem; }
+
+input, select, textarea {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  font: inherit;
+  background: var(--superficie);
+  color: var(--texto);
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--acento); outline-offset: 1px; }
+textarea { min-height: 80px; resize: vertical; }
+
+button {
+  font: inherit;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--acento);
+  background: var(--acento);
+  color: #fff;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { filter: brightness(1.08); }
+button:disabled { opacity: 0.55; cursor: not-allowed; }
+button.secundario { background: var(--superficie); color: var(--acento); }
+button.peligro { background: var(--superficie); color: var(--error); border-color: var(--error); }
+button.enlace { background: none; border: none; color: var(--acento); padding: 0; text-decoration: underline; }
+
+.fila { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: flex-end; }
+.fila > * { flex: 1 1 160px; }
+.fila > button { flex: 0 0 auto; }
+
+/* --- listas y tablas --- */
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 0.5rem 0.4rem; border-bottom: 1px solid var(--borde); }
+th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--texto-suave); }
+td.acciones { text-align: right; white-space: nowrap; }
+td.acciones button { margin-left: 0.4rem; }
+
+.lista { list-style: none; margin: 0; padding: 0; }
+.lista > li { border-bottom: 1px solid var(--borde); padding: 0.7rem 0; }
+.lista > li:last-child { border-bottom: none; }
+
+.etiqueta {
+  display: inline-block;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--acento-suave);
+  color: var(--acento);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* --- avisos --- */
+.aviso { padding: 0.6rem 0.75rem; border-radius: 6px; margin: 0 0 1rem; }
+.aviso-error { background: var(--error-suave); color: var(--error); }
+.aviso-ok { background: var(--acento-suave); color: var(--ok); }
+.aviso-info { background: #eef2f7; color: var(--texto-suave); }
+
+.cargando, .vacio { color: var(--texto-suave); }
+.ayuda { color: var(--texto-suave); font-size: 0.85rem; }
