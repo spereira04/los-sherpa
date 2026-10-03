@@ -43,6 +43,17 @@ sin tocar CORS.
 
 **Terminal 1 — backend con datos de ejemplo:**
 
+# Windows (Powershell)
+```bash
+cd backend
+$env:SPRING_PROFILES_ACTIVE="dev"
+$env:SEED_PASSWORD="clave de ejemplo para desarrollo"
+$env:ADMIN_EMAIL="admin@lossherpa.local"
+$env:ADMIN_PASSWORD="montana nieve 1953 cumbre"
+.\mvnw.cmd spring-boot:run
+```
+
+# Linux / MacOS
 ```bash
 cd backend
 export SPRING_PROFILES_ACTIVE=dev
