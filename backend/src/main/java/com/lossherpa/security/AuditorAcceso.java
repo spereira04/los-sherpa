@@ -1,5 +1,7 @@
 package com.lossherpa.security;
 
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,6 +55,26 @@ public class AuditorAcceso {
                 SanitizadorLog.limpiar(motivo));
     }
 
+    /**
+     * RS18 - Fail closed: un componente de la cadena de autorizacion fallo y la request se
+     * corto en lugar de seguir. El motivo lleva el componente y solo el NOMBRE de la clase de
+     * la excepcion: el mensaje puede traer SQL, rutas o datos de usuario, asi que no se loguea
+     * (el detalle tecnico queda en el log de la aplicacion, no en la auditoria).
+     */
+    public void falloCerrado(HttpServletRequest request, String usuarioId, int estado,
+                             String componente, Throwable causa) {
+        LOG.warn("{\"ts\":\"{}\",\"evento\":\"fallo_cerrado\",\"estado\":{},"
+                        + "\"usuarioId\":\"{}\",\"ip\":\"{}\",\"metodo\":\"{}\","
+                        + "\"recurso\":\"{}\",\"motivo\":\"{}\"}",
+                Instant.now(),
+                estado,
+                SanitizadorLog.limpiar(usuarioId == null ? "anonimo" : usuarioId),
+                SanitizadorLog.limpiar(ipDe(request)),
+                SanitizadorLog.limpiar(request == null ? null : request.getMethod()),
+                SanitizadorLog.limpiar(recursoDe(request)),
+                SanitizadorLog.limpiar(componente + ": "
+                        + (causa == null ? "desconocida" : causa.getClass().getSimpleName())));
+    }
     /** RF4 + RS12: el evento no incluye datos de la ejecución. */
     public void ejecucionEliminada(UUID atletaId, UUID ejecucionId) {
         LOG.info("{\"ts\":\"{}\",\"evento\":\"ejecucion_eliminada\","
@@ -78,6 +100,12 @@ public class AuditorAcceso {
     private String recursoDe(HttpServletRequest request) {
         if (request == null) {
             return null;
+        }
+        // RS18: en el dispatch ERROR el contenedor reenvia a /error y getRequestURI() deja de ser
+        // el recurso que fallo. El path original viene en el atributo del contenedor.
+        if (request.getDispatcherType() == DispatcherType.ERROR
+                && request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI) instanceof String original) {
+            return original;
         }
         // Solo metodo y path: nunca el query string ni el body, que pueden traer datos sensibles.
         return request.getRequestURI();

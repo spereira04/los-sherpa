@@ -6,7 +6,7 @@ lo cubren. En el código, cada punto está marcado con un comentario (`// RS04`,
 Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las de tests a
 `backend/src/test/java/com/lossherpa/`.
 
-**Estado de la suite: 185 tests, todos en verde** (`cd backend && ./mvnw test`).
+**Estado de la suite: 198 tests, todos en verde** (`cd backend && ./mvnw test`).
 
 ---
 
@@ -26,6 +26,7 @@ Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las
 | RS14 | Sin configuración por defecto | ✅ |
 | RS15 | Tests unitarios y de integración | ✅ |
 | RS17 | Protección de logs | ✅ |
+| RS18 | Deny by default ante errores (fail closed) | ✅ |
 
 ---
 
@@ -600,6 +601,92 @@ línea JSON por evento de auditoría. No se loguea SQL con parámetros
 | Elimina caracteres de control y ANSI | `security/SanitizadorLogTest.eliminaCaracteresDeControl` |
 | Trunca valores largos | `security/SanitizadorLogTest.truncaValoresLargos` |
 | Un email con `\n` no puede inyectar una entrada falsa (el evento sigue siendo uno y es el real) | `web/LoginSesionTest.noSePuedeInyectarEnElLog` |
+
+---
+
+## RS18 — Deny by default ante errores (fail closed)
+
+**Regla.** Si algo falla mientras se decide o se aplica la autorización (excepción, base
+caída, datos inconsistentes), el resultado es **denegar**: la request no continúa, no se
+ejecuta la lógica de negocio y no se devuelven datos parciales. RS14 define el *formato* de
+los errores; RS18 define su *efecto* sobre la autorización.
+
+**Falla → respuesta → auditoría**
+
+| # | Falla | Respuesta | Auditoría (`logs/auditoria.log`) | Dónde |
+|---|---|---|---|---|
+| 1 | `UsuarioRepository.findById` lanza una excepción en `FiltroSesionVigente` (base caída, SQLite bloqueado) | **503** `{"error":"El servicio no esta disponible en este momento"}`. La request se corta; no sigue con el principal viejo de la sesión | evento `fallo_cerrado`, estado 503, id del usuario, motivo `FiltroSesionVigente: DataAccessResourceFailureException` | `security/FiltroSesionVigente` |
+| 2 | La política de acceso lanza una excepción al evaluar (incluye rutas públicas y requests sin sesión) | **403** `{"error":"No tiene permisos para realizar esta accion"}` | evento `acceso_denegado`, estado 403, motivo `error al evaluar la politica (IllegalStateException)` | `security/PoliticaAcceso.exigir` |
+| 3 | Un servicio lanza una excepción | **500** `{"error":"Ocurrio un error inesperado"}`, sin cuerpo parcial | el detalle queda en el log de la aplicación (`LOG.error`); no es una denegación de autorización, así que no va a la auditoría | `error/ManejadorGlobalErrores.inesperado` |
+| 4 | JSON ilegible, parámetro faltante o UUID mal formado | **400** `{"error":"La solicitud no es valida"}`; el servicio no se ejecuta | — (RS14) | `ManejadorGlobalErrores.entradaInvalida` |
+| 5 | El cuerpo no pasa Bean Validation | **400** con el nombre de los campos, nunca el valor recibido | — (RS14) | `ManejadorGlobalErrores.validacion` |
+| 6 | Una excepción escapa de todo handler (por ejemplo, la lanza un filtro) y el contenedor reenvía a `/error` | **403** `{"error":"No tiene permisos para realizar esta accion"}`, JSON siempre, sin HTML ni stack trace | evento `acceso_denegado`, estado 403, **recurso original** y motivo `error interno no manejado (HTTP 500), denegado al reenviar a /error` | `ManejadorAccesoDenegado`, `AuditorAcceso` |
+| 7 | Request directa a `/error` | **403** igual que el punto 6 | `acceso_denegado` (regla `/error` DENEGADO) | `PoliticaAcceso` |
+
+En todos los casos el mensaje de la excepción **no sale por HTTP ni entra en la auditoría**:
+la auditoría guarda solo el nombre de la clase de la excepción (RS17). El detalle técnico
+queda en el log de la aplicación.
+
+**Cómo está implementado**
+
+- **Filtro** (`FiltroSesionVigente`): el `try/catch` cubre solo la recarga del usuario. Ante
+  cualquier `RuntimeException` limpia el contexto de seguridad, audita y responde 503. No
+  cubre `chain.doFilter`: lo que falle más abajo no es una falla de este filtro.
+- **Política** (`PoliticaAcceso.exigir`): envuelve a `evaluar`. Los `AccessDeniedException` y
+  `AuthenticationException` son decisiones (403 y 401) y siguen su camino; cualquier otra
+  excepción se convierte en `AccesoDenegadoPorPolitica`, o sea 403. Como lo usan los dos
+  puntos de aplicación de RS01 (filtro por URL e interceptor del handler), el fail closed
+  vale en los dos.
+
+**Decisiones**
+
+1. **Base no disponible en el filtro → 503, no 401.** La falla es del servidor, no del
+   cliente: un 401 haría que el SPA (`api/cliente.ts`) limpiara el estado y mandara al login,
+   y por eso la sesión **no se invalida**. Cuando la base vuelve, el mismo usuario sigue
+   logueado (`FallaCerradaTest.laSesionSobreviveALaFallaDeLaBase`). Lo que sí se descarta es
+   el contexto de seguridad de ese request.
+2. **`/error` queda DENEGADO (RS13), no se habilita para el forward del contenedor.** Es lo
+   que ya definía la política de SH-22. Medido con un servidor real: una excepción que
+   escapa de todo handler **vuelve como 403**, no como 500 ni como respuesta vacía: el
+   dispatch de tipo ERROR pasa por la regla `/error` de la política y se
+   deniega. Es fail closed y no filtra nada, así que se acepta. **Costo conocido:** un error
+   interno real se le muestra al cliente como "sin permisos". Se mitiga en la auditoría
+   (punto 6 de la tabla: recurso original y motivo "error interno no manejado") y en el log
+   de la aplicación, donde sí está el stack trace. Si se prefiriera devolver 500, habría que
+   permitir solo el dispatch `ERROR` hacia `/error` y servirlo con un `ErrorController`
+   propio (en una prueba previa a SH-22 funcionó; hoy habría que ajustar también el
+   interceptor). Cambia la regla de SH-22 y queda fuera de este issue.
+3. **Los errores que no son de autorización (500, 400) no se auditan como denegación.** La
+   auditoría es de autorización (RS12); un 500 de negocio deja rastro en el log de la
+   aplicación.
+
+**Tests** — `security/FallaCerradaTest` (8), `security/FallaCerradaRealTest` (4, con Tomcat
+embebido), `security/PoliticaAccesoFallaCerradaTest` (5)
+
+| Caso | Test |
+|---|---|
+| Base caída en el filtro → 503 genérico, el servicio no se invoca, auditado sin el mensaje de la excepción | `FallaCerradaTest.baseCaidaEnElFiltroCorta` |
+| La misma falla corta también una escritura | `FallaCerradaTest.baseCaidaCortaTambienLasEscrituras` |
+| La sesión sobrevive a una falla transitoria | `FallaCerradaTest.laSesionSobreviveALaFallaDeLaBase` |
+| La política lanza → 403, el servicio no se invoca, auditado | `FallaCerradaTest.laPoliticaQueFallaDenega` |
+| La política lanza → también se deniega una ruta pública sin sesión | `FallaCerradaTest.laPoliticaQueFallaDenegaHastaLoPublico` |
+| Un servicio lanza → 500 con el cuerpo genérico exacto | `FallaCerradaTest.elServicioQueFallaDa500Generico` |
+| JSON ilegible y validación fallida → 400, el servicio no se invoca | `FallaCerradaTest.jsonIlegibleDa400SinEjecutarNada`, `validacionFallidaDa400SinEjecutarNada` |
+| Excepción de un filtro → 403 JSON, sin stack trace ni HTML, con `Accept` json, html y `*/*` | `FallaCerradaRealTest.laExcepcionNoManejadaDaUnaRespuestaGenerica`, `laCausaNoSale` |
+| Esa excepción queda auditada con el recurso original | `FallaCerradaRealTest.elErrorNoManejadoSeAudita` |
+| `/error` pedido directamente → 403 | `FallaCerradaRealTest.errorDirectoEstaDenegado` |
+| La política no convierte en falla un 401/403 normal ni consulta la sesión en rutas públicas | `PoliticaAccesoFallaCerradaTest` |
+
+Los tests del filtro y de la política se verificaron quitando el `try/catch` a propósito: sin
+el fail closed fallan 6 de ellos (5 errores y 1 fallo).
+
+**Verificación manual.**
+
+- Con la app levantada, poner `data/sherpa.db` en solo lectura o borrarla **no** hace fallar
+  el filtro: una base abierta sigue pudiendo leerse. Lo que cambia es la escritura: probar un
+  `POST` autenticado (por ejemplo crear una rutina) y comprobar que devuelve el 500 genérico
+  y ningún dato. El 503 del filtro está cubierto solo por el test automático.
+- Con `curl -i http://localhost:8080/error` debe dar 403 con el cuerpo genérico.
 
 ---
 

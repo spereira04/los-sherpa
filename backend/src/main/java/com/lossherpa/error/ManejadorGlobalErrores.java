@@ -173,6 +173,7 @@ public class ManejadorGlobalErrores {
     /**
      * Ultima red: cualquier excepcion no prevista se loguea del lado del servidor y al
      * cliente le llega un 500 sin detalle. RS14: nunca sale un stack trace por HTTP.
+     * RS18: la request ya fallo, asi que el cuerpo es el generico y nunca datos parciales.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> inesperado(Exception ex) {
