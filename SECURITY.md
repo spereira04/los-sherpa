@@ -6,7 +6,7 @@ lo cubren. En el código, cada punto está marcado con un comentario (`// RS04`,
 Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las de tests a
 `backend/src/test/java/com/lossherpa/`.
 
-**Estado de la suite: 181 tests, todos en verde** (`cd backend && ./mvnw test`).
+**Estado de la suite: 192 tests, todos en verde** (`cd backend && ./mvnw test`).
 
 ---
 
@@ -15,6 +15,7 @@ Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las
 | RS | Requisito | Estado |
 |---|---|---|
 | RS01 | Control de acceso centralizado (PEP) | ✅ |
+| RS02 | Deny by default para requests no contempladas | ✅ |
 | RS03 | Modelo híbrido RBAC + ABAC | ✅ |
 | RS04 | Control de acceso a nivel de dato (ASVS 8.2.2) | ✅ |
 | RS05 | Controles solo en el servidor | ✅ |
@@ -32,8 +33,7 @@ Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las
 ## Política de autorización
 
 **Fuente de verdad: `security/PoliticaAcceso.java`.** Esta tabla es la misma lista, una fila
-por endpoint (método + patrón exacto). Lo que no está acá se deniega
-(`anyRequest().denyAll()`, RS13).
+por endpoint (método + patrón exacto). Lo que no está acá se deniega (RS02).
 
 | Método | Path | Rol | Atributo (ABAC) | Denegación |
 |---|---|---|---|---|
@@ -104,7 +104,7 @@ tercera barrera.
 | Dónde | Qué hace |
 |---|---|
 | `security/PoliticaAcceso.java` | Tabla de reglas (método + patrón + rol + atributo) y la decisión `exigir(...)` |
-| `config/SecurityConfig.java` | Registra cada regla de la política en el filtro; termina en `denyAll()` (RS13) |
+| `config/SecurityConfig.java` | Registra cada regla de la política en el filtro; termina en `DenegacionPorDefecto` (RS02) |
 | `security/InterceptorPoliticaAcceso.java` | Segunda decisión sobre el handler elegido por MVC |
 | `config/ConfiguracionPoliticaAcceso.java` | Registra el interceptor para todos los handlers (controladores, estáticos, `/error`) |
 | `security/AccesoDenegadoPorPolitica.java` | 403 con el motivo real para el log |
@@ -136,6 +136,70 @@ vez falla es un bug de la configuración, y responde 403 auditado igual.
 | Sin la regla de URL de admin, el atleta igual recibe 403 de la segunda capa | `security/DefensaEnProfundidadTest.sinReglaDeUrlElAtletaIgualEsDenegado` |
 | Sin la regla de URL, sin sesión → 401 de la segunda capa | `security/DefensaEnProfundidadTest.sinReglaDeUrlSinSesionEs401` |
 | La segunda capa no le quita acceso al rol correcto | `security/DefensaEnProfundidadTest.elAdminSigueEntrando` |
+
+---
+
+## RS02 — Deny by default para requests no contempladas
+
+**Cómo está implementado.** Las reglas son **por método y patrón exacto**, una por endpoint
+(ver "Política de autorización"). La última regla de la cadena es
+`anyRequest().access(DenegacionPorDefecto)`, que **nunca concede**: toda request que no
+coincide con una regla (path inexistente bajo un prefijo válido, método no declarado, `HEAD`,
+`OPTIONS` fuera de un preflight CORS) la deniega la capa de autorización y queda auditada con
+motivo `request no contemplada`. Ya no depende de que MVC no encuentre un handler.
+
+**Antes del cambio** (reglas por prefijo y sin método), `web/DenegacionPorDefectoTest` daba:
+
+| Request | Antes | Ahora |
+|---|---|---|
+| `GET /api/atleta/no-existe` (atleta) | 404 de MVC, sin auditoría | 403 + auditoría |
+| `PATCH` / `DELETE /api/perfil`, `PUT /api/entrenador/atletas/{id}/rutinas` | **500** (el 405 de MVC caía en el catch-all) | 403 + auditoría |
+| `POST /login` (ruta del SPA) | **500** | 403 |
+| `HEAD /api/atleta/rutinas` | 200 | 403 |
+| `OPTIONS /api/atleta/rutinas` sin CORS | 200 | 403 |
+| `TRACE /api/perfil` | 400 del firewall, sin auditoría | 400 + auditoría |
+
+**Decisión: una request no contemplada de un usuario autenticado devuelve 403.** Es
+consistente con RS13: la ruta no existe para nadie, así que no hay recurso que enumerar. Sin
+sesión, dentro de las zonas que exigen sesión (`/api/atleta/**`, `/api/entrenador/**`,
+`/api/admin/**`, `/api/perfil/**`, `/api/auth/**`) responde **401**: primero hay que
+autenticarse. Fuera de esas zonas (`/api/no-existe`, `/actuator`) sigue siendo 403, como
+fija `web/EstaticosTest`.
+
+**`TRACE`.** Lo rechaza el `StrictHttpFirewall` de Spring Security **antes** de autorizar
+(no está en su lista de métodos), con 400. Antes no quedaba rastro; ahora el
+`RequestRejectedHandler` de `SecurityConfig` lo audita como `request rechazada por el
+firewall` y responde el JSON genérico. Lo mismo vale para paths con `..`, `;` o `//`. Además,
+Tomcat trae `allowTrace=false` por defecto.
+
+**`/**` que quedan.** Bajo `/api/` no queda ninguno. Los únicos comodines son rutas del SPA
+(`/atleta/**`, `/entrenador/**`, `/admin/**`) y `/assets/**`: solo `GET`, y solo devuelven el
+`index.html` o un archivo del build (RS13).
+
+**Pendiente para SH-24 (RS18).** `ManejadorGlobalErrores` sigue convirtiendo un
+`HttpRequestMethodNotSupportedException` en 500. Con RS02 ninguna request llega a MVC con un
+método no declarado, pero el manejador conviene corregirlo junto con el resto de errores.
+
+| Dónde | Qué hace |
+|---|---|
+| `security/DenegacionPorDefecto.java` | Última regla: 401 sin sesión en zona protegida, 403 `request no contemplada` en el resto |
+| `config/SecurityConfig.java` | Reglas exactas desde la política + `anyRequest().access(denegacionPorDefecto)`; `requestRejectedHandler` |
+| `security/ManejadorAccesoDenegado.java` | Audita el motivo (`request no contemplada`, rol, CSRF) |
+
+**Tests** — `web/DenegacionPorDefectoTest` (11 tests)
+
+| Caso | Test |
+|---|---|
+| Path inexistente bajo prefijo válido → 403 + auditoría | `pathInexistenteBajoPrefijoValido` |
+| `PATCH` / `DELETE /api/perfil` → 403 + auditoría | `metodoNoDeclaradoSobrePerfil` |
+| `PUT` no declarado del entrenador → 403 | `putNoDeclaradoDelEntrenador` |
+| Sin sesión, las mismas requests → 401 | `sinSesionEs401` |
+| `TRACE` → 400 del firewall, auditado | `traceLoRechazaElFirewall` |
+| Paths con `..` o `;` → 400 del firewall, auditado | `pathsManipuladosLosRechazaElFirewall` |
+| `HEAD` no declarado → 403 | `headNoDeclaradoSeDeniega` |
+| `OPTIONS` sin CORS → 403; el preflight del origen permitido sigue andando | `optionsSinCorsSeDeniega`, `elPreflightCorsSigueFuncionando` |
+| Ruta del SPA con otro método → 403 (antes 500) | `rutaDelSpaConOtroMetodoSeDeniega` |
+| Regresión de endpoints legítimos | `losEndpointsLegitimosSiguenIgual` |
 
 ---
 
@@ -348,7 +412,8 @@ con `ts`, `evento`, `estado`, `usuarioId` (o `anonimo`), `ip`, `metodo`, `recurs
 Tres eventos: `acceso_denegado`, `login_fallido` y `sesion_invalidada`. Se registran los 401
 del entry point, los 403 del access denied handler y los 404 por recurso ajeno del handler
 global. El `motivo` de un 403 es el que dio la política (`el endpoint exige el rol ATLETA`,
-`token CSRF invalido o ausente`).
+`request no contemplada`, `token CSRF invalido o ausente`), y las requests que rechaza el
+firewall de Spring Security quedan como `request rechazada por el firewall` (RS02).
 
 **Nunca se loguean** contraseñas, cookies, tokens, cabeceras ni cuerpos de request. Del
 request solo salen el método y el path, sin query string. El email del admin tampoco se
@@ -358,7 +423,8 @@ registra al crearlo.
 |---|---|
 | `security/AuditorAcceso.java` | `denegado(...)`, `loginFallido(...)`, `sesionInvalidada(...)` |
 | `security/PuntoEntradaNoAutenticado.java` | 401 sin sesión |
-| `security/ManejadorAccesoDenegado.java` | 403 fuera de rol o CSRF inválido, con el motivo de la política |
+| `security/ManejadorAccesoDenegado.java` | 403 fuera de rol, request no contemplada o CSRF inválido, con el motivo de la política |
+| `config/SecurityConfig.java` | `requestRejectedHandler`: requests rechazadas por el firewall |
 | `error/ManejadorGlobalErrores.java` | `noEncontrado(...)`: registra el 404 por recurso ajeno |
 | `security/FiltroSesionVigente.java` | registra la sesión invalidada |
 | `resources/logback-spring.xml` | logger `AUDITORIA` → `logs/auditoria.log`, patrón `%msg%n` |
@@ -379,12 +445,12 @@ y auditable en el código, al lado del saneado.
 
 ## RS13 — Deny by default, incluidos los recursos estáticos
 
-**Cómo está implementado.** La cadena de autorización termina en **`anyRequest().denyAll()`**,
-no en `authenticated()`. Todo lo que se sirve está
+**Cómo está implementado.** La cadena de autorización termina en una regla que **siempre
+deniega** (`DenegacionPorDefecto`, RS02), no en `authenticated()`. Todo lo que se sirve está
 enumerado en `PoliticaAcceso` (ver "Política de autorización"):
 
 - **Lista blanca pública**: `GET /api/csrf`, `POST /api/auth/login`, `POST /api/auth/registro`.
-- **API por rol**: una regla por endpoint, con método y patrón exactos (RS01).
+- **API por rol**: una regla por endpoint, con método y patrón exactos (RS01, RS02).
 - **Estáticos**: solo los archivos del build del frontend, solo con `GET`.
 
 Para los estáticos se tomaron tres medidas:
@@ -403,7 +469,7 @@ o cuyo path termine en `/`. El test `EstaticosTest.noHayListadoDeDirectorios` fi
 | Dónde | Qué hace |
 |---|---|
 | `security/PoliticaAcceso.java` | Rutas del SPA y estáticos, solo `GET` |
-| `config/SecurityConfig.java` | `authorizeHttpRequests(...)` desde la política, terminando en `denyAll()` |
+| `config/SecurityConfig.java` | `authorizeHttpRequests(...)` desde la política, terminando en `DenegacionPorDefecto` |
 | `config/ConfiguracionRecursosEstaticos.java` | Declara los patrones servibles y rechaza directorios |
 | `config/ControladorSpa.java` | Entrega `index.html` solo para las rutas conocidas del SPA |
 | `resources/application.yml` | `spring.web.resources.add-mappings: false` |
@@ -486,12 +552,13 @@ al servir por HTTPS.
 
 ## RS15 — Tests unitarios y de integración
 
-**181 tests** con JUnit 5, Spring Boot Test y MockMvc, concentrados en la lógica de negocio y
+**192 tests** con JUnit 5, Spring Boot Test y MockMvc, concentrados en la lógica de negocio y
 sobre todo en los controles de seguridad.
 
 | Clase | Tests | Qué cubre |
 |---|---|---|
 | `web/VinculacionTest` | 29 | solicitudes, vínculos, IDOR, roles, RS10 |
+| `web/DenegacionPorDefectoTest` | 11 | RS02: requests no contempladas, firewall, CORS |
 | `security/PoliticaAccesoTest` | 5 | RS01, RS03, RS05: matriz por grupo de rol, auditoría, identidad |
 | `security/DefensaEnProfundidadTest` | 3 | RS01: segunda capa sin la regla de URL |
 | `web/AdminTest` | 20 | panel de admin, no crear admins, RS10 al eliminar |
