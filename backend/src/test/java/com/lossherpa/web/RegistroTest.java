@@ -4,6 +4,8 @@ import com.lossherpa.domain.Rol;
 import com.lossherpa.support.TestIntegracion;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -11,6 +13,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -40,6 +43,50 @@ class RegistroTest extends TestIntegracion {
         datos.put("fechaNacimiento", "1980-11-02");
         datos.put("aniosServicio", 12);
         return datos;
+    }
+
+    @Test
+    @DisplayName("RF1: registrarse como atleta y luego loguearse deja /yo con el rol ATLETA")
+    void registroYLoginComoAtleta() throws Exception {
+        registrarYVerificarRol(registroAtleta(), "ATLETA");
+    }
+
+    @Test
+    @DisplayName("RF1: registrarse como entrenador y luego loguearse deja /yo con el rol ENTRENADOR")
+    void registroYLoginComoEntrenador() throws Exception {
+        registrarYVerificarRol(registroEntrenador(), "ENTRENADOR");
+    }
+
+    private void registrarYVerificarRol(Map<String, Object> datos, String rolEsperado)
+            throws Exception {
+        mvc.perform(post("/api/auth/registro").with(csrf())
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(datos)))
+                .andExpect(status().isCreated());
+
+        MockHttpSession sesion = iniciarSesion((String) datos.get("email"));
+
+        mvc.perform(get("/api/auth/yo").session(sesion))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rol").value(rolEsperado))
+                .andExpect(jsonPath("$.email").value(datos.get("email")));
+    }
+
+    @Test
+    @DisplayName("RF1: el registro no inicia sesion (ni cookie ni sesion del lado del servidor)")
+    void elRegistroNoIniciaSesion() throws Exception {
+        MvcResult resultado = mvc.perform(post("/api/auth/registro").with(csrf())
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(registroAtleta())))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        assertThat(resultado.getResponse().getCookie("SHERPASESSION")).isNull();
+        assertThat(resultado.getRequest().getSession(false)).isNull();
+
+        // Y la respuesta del registro, sola, no sirve como credencial.
+        mvc.perform(get("/api/auth/yo"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

@@ -777,7 +777,48 @@ línea JSON por evento de auditoría. No se loguea SQL con parámetros
 
 ---
 
-## RS18 — Deny by default ante errores (fail closed)
+## RF1 — Registro y autenticación de usuarios (SH-35)
+
+Auditoría del flujo de registro y login contra el requerimiento. Es mayormente verificación:
+no hizo falta tocar código de producción, solo se agregaron los tests que faltaban.
+
+**Trazabilidad: qué pide RF1 → dónde se cumple → test**
+
+| RF1 pide | Dónde se cumple | Test |
+|---|---|---|
+| Registrar eligiendo perfil (Entrenador o Atleta) | `AuthController.registrar`, `ServicioAutenticacion.registrar`, `RolRegistro` (sin ADMIN); `pages/publicas/Registro.tsx` | `web/RegistroTest.registraAtleta`, `registraEntrenador`, `noSePuedeRegistrarUnAdmin` |
+| Tras registrarse se puede entrar con el perfil elegido | `POST /api/auth/login` + `GET /api/auth/yo` | `web/RegistroTest.registroYLoginComoAtleta`, `registroYLoginComoEntrenador` |
+| Inicio de sesión seguro | BCrypt costo 12, sesión del lado del servidor, id de sesión regenerado, mensaje único de error | `web/LoginSesionTest` (15 tests), `service/PoliticaContrasenaTest` |
+| Tablas de usuarios y credenciales | `domain/Usuario` (`passwordHash`, `rol`, `email` único) | `web/RegistroTest.laRespuestaNoFiltraElHash` |
+| Pantallas de login y registro | `pages/publicas/Login.tsx`, `Registro.tsx`, `auth/SesionContext.tsx` | verificación manual (ver abajo) |
+| Cierre de sesión | `POST /api/auth/logout` | `web/LoginSesionTest.elLogoutInvalidaLaSesion` |
+
+**Conclusión de cada punto revisado**
+
+| Punto | Conclusión | Detalle |
+|---|---|---|
+| Enumeración de usuarios en el registro | **Riesgo aceptado** | Un email repetido devuelve 409 "Ya existe una cuenta con ese email", así que el registro permite saber si un email tiene cuenta. El login no lo revela. Se acepta porque una respuesta neutra obligaría a avisar por correo "ya tenés cuenta", y el sistema no envía correos: el usuario se quedaría sin saber por qué no pudo registrarse. Es el trade-off habitual de UX contra enumeración. Test que fija el comportamiento: `RegistroTest.rechazaEmailDuplicado`. |
+| Timing del login | **OK, medido** | Con BCrypt costo 12 (el de producción), 8 intentos con email existente y contraseña incorrecta dieron una mediana de **224 ms**; 8 con email inexistente, **224 ms** (rangos 222–228 y 221–225 ms). `DaoAuthenticationProvider` ya compara contra un hash ficticio cuando el usuario no existe, y `setHideUserNotFoundExceptions(true)` oculta la causa. No se agregó un test de tiempos porque serían inestables. |
+| ¿El registro deja la sesión iniciada? | **OK, no la inicia** | `registrar` devuelve 201 sin cookie `SHERPASESSION` y sin sesión del lado del servidor; el frontend manda al login. Como no hay sesión, no hay nada que regenerar. Test: `RegistroTest.elRegistroNoIniciaSesion`. |
+| Timeout absoluto de sesión | **Riesgo aceptado** | Solo hay timeout por inactividad (`server.servlet.session.timeout: 30m`). Una sesión usada de forma continua no vence nunca. Se acepta: la cookie es `HttpOnly` y `SameSite=Lax`, y el Informe v1 no pide vigencia máxima. Si se quisiera, habría que guardar la hora de creación en la sesión y cortarla en `FiltroSesionVigente`. |
+| Validación espejo en el frontend | **OK** | `Registro.tsx` hace `required` y `minLength={12}`; el resto lo valida el backend. Los mensajes de `PoliticaContrasena` llegan en `$.error`, `cliente.ts` los lee en `leerError` y `mensajeDe` los muestra en el `Aviso`. El HTML solo es una ayuda: la política se aplica en el servidor. |
+
+**Fuera de alcance, riesgo aceptado.** No hay rate limiting ni bloqueo de cuenta, ni
+recuperación de contraseña ni MFA: el Informe v1 los deja fuera. Un atacante puede probar
+contraseñas sobre una cuenta sin límite de intentos; lo único que lo frena es el costo de
+BCrypt (~0,2 s por intento) y la política de contraseñas que descarta las más comunes.
+
+**Verificación manual**
+
+1. Registrarse en `/registro` como atleta, y luego como entrenador: ambos terminan en `/login`.
+2. Entrar, recargar la página: sigue logueado (el estado se restaura con `/api/auth/yo`).
+3. Salir y volver a entrar.
+4. Login con una contraseña incorrecta: mensaje genérico, y `logs/auditoria.log` tiene un
+   evento `login_fallido` con el email y sin la contraseña.
+
+---
+
+## Base de seguridad general
 
 **Regla.** Si algo falla mientras se decide o se aplica la autorización (excepción, base
 caída, datos inconsistentes), el resultado es **denegar**: la request no continúa, no se
