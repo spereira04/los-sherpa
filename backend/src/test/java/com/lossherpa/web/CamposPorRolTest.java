@@ -112,11 +112,11 @@ class CamposPorRolTest extends TestIntegracion {
     // -------------------------------------------------------------------- lectura: propio
 
     @Test
-    @DisplayName("RS06 lectura: /api/auth/yo devuelve solo id, email, rol, nombre y apellido")
+    @DisplayName("RS06 lectura: /api/auth/yo devuelve solo id, email, rol, nombre, apellido y tema")
     void sesionPropia() throws Exception {
         for (String email : List.of("ana@test.com", "beto@test.com", "admin@test.com")) {
             exactamente(leer("/api/auth/yo", email), "yo de " + email,
-                    "id", "email", "rol", "nombre", "apellido");
+                    "id", "email", "rol", "nombre", "apellido", "tema");
         }
     }
 
@@ -125,12 +125,12 @@ class CamposPorRolTest extends TestIntegracion {
     void perfilPropio() throws Exception {
         exactamente(leer("/api/perfil", "ana@test.com"), "perfil de atleta",
                 "id", "email", "rol", "nombre", "apellido", "fechaNacimiento", "edad",
-                "descripcion", "pesoKg");
+                "descripcion", "pesoKg", "tema");
         exactamente(leer("/api/perfil", "beto@test.com"), "perfil de entrenador",
                 "id", "email", "rol", "nombre", "apellido", "fechaNacimiento", "edad",
-                "descripcion", "aniosServicio");
+                "descripcion", "aniosServicio", "tema");
         exactamente(leer("/api/perfil", "admin@test.com"), "perfil de admin",
-                "id", "email", "rol", "nombre", "apellido", "fechaNacimiento", "edad");
+                "id", "email", "rol", "nombre", "apellido", "fechaNacimiento", "edad", "tema");
     }
 
     // ------------------------------------------------- lectura: lo que ve el atleta de otros
