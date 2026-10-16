@@ -1,5 +1,6 @@
 package com.lossherpa.error;
 
+import com.lossherpa.security.AccesoDenegadoPorPolitica;
 import com.lossherpa.security.AuditorAcceso;
 import com.lossherpa.security.SanitizadorLog;
 import com.lossherpa.security.UsuarioActual;
@@ -11,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -93,11 +95,30 @@ public class ManejadorGlobalErrores {
         return respuesta(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
+    /**
+     * 403 desde adentro de MVC: el segundo punto de aplicacion de la politica
+     * (InterceptorPoliticaAcceso, RS01) o el chequeo redundante de rol de un servicio.
+     */
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<Map<String, Object>> accesoDenegado(HttpServletRequest request) {
+    public ResponseEntity<Map<String, Object>> accesoDenegado(AccessDeniedException ex,
+                                                              HttpServletRequest request) {
+        String motivo = ex instanceof AccesoDenegadoPorPolitica denegacion
+                ? denegacion.getMotivo()
+                : "acceso denegado en la capa de servicio";
         auditor.denegado(request, UsuarioActual.idOpcional().map(Object::toString).orElse(null),
-                HttpStatus.FORBIDDEN.value(), "acceso denegado en la capa de servicio");
+                HttpStatus.FORBIDDEN.value(), motivo);
         return respuesta(HttpStatus.FORBIDDEN, "No tiene permisos para realizar esta accion");
+    }
+
+    /**
+     * 401 desde adentro de MVC: solo pasa si el filtro dejo pasar una request sin sesion a
+     * un handler que la exige y el interceptor la freno (RS01, defensa en profundidad).
+     */
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<Map<String, Object>> noAutenticado(HttpServletRequest request) {
+        auditor.denegado(request, null, HttpStatus.UNAUTHORIZED.value(),
+                "sin sesion autenticada (interceptor)");
+        return respuesta(HttpStatus.UNAUTHORIZED, "No autenticado");
     }
 
     /** Cuerpo JSON ilegible, parametro faltante o UUID mal formado: siempre 400 generico. */
