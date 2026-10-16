@@ -309,5 +309,5 @@ LosSherpa/
 ## Fuera de alcance
 
 No se implementan, por definición del sprint: facturación, subida de archivos, edición de
-rutinas o de ejecuciones, feedback del entrenador, notificaciones, recuperación de
-contraseña, rate limiting y Docker.
+ejecuciones, feedback del entrenador, notificaciones, recuperación y cambio de contraseña,
+rate limiting y Docker.

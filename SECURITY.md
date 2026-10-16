@@ -865,9 +865,10 @@ del login y `GET /api/auth/yo`). El id salía de la sesión, pero el controlador
 la capa de servicios. Lo detectó `losControladoresNoAccedenARepositorios`; ahora pasa por
 `ServicioAutenticacion.usuarioDeLaSesion()`.
 
-**Endpoints de RF2, RF4 y RF7.** SH-36, SH-38 y SH-41 todavía no están en esta rama. El test
-no tiene una lista fija de endpoints: cuando se integren, la suite va a fallar hasta que
-cada endpoint nuevo tenga su regla en `PoliticaAcceso`, que es exactamente la garantía.
+**Endpoints de RF2, RF4 y RF7.** El test no tiene una lista fija de endpoints: los `PUT` y
+`DELETE` de rutinas (RF2), los `DELETE` de ejecuciones (RF4) y `PUT /api/perfil/preferencias`
+(RF7) entraron a la verificación solos al integrarse, y cada uno necesitó su regla en
+`PoliticaAcceso` para que la suite pase, que es exactamente la garantía.
 
 **Decisión: reflexión, no ArchUnit.** La suite corre offline (`./mvnw -o`) y ArchUnit no está
 en el repositorio local de Maven; además las reglas necesitan el patrón de cada endpoint,
@@ -1110,5 +1111,6 @@ autorización se aplica en el backend, primero en la cadena de filtros y de nuev
 consulta.
 
 El cliente HTTP (`frontend/src/api/cliente.ts`) no guarda datos del usuario en
-`localStorage`: la sesión vive en el servidor, así que cualquier cambio de autorización se
+`localStorage` (lo único que se guarda ahí es el tema de RF7, para evitar el parpadeo inicial;
+el valor que manda es el del servidor): la sesión vive en el servidor, así que cualquier cambio de autorización se
 refleja en el request siguiente. Ante un 401 limpia el estado local y manda al login.
