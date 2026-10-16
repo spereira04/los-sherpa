@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpSession;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -19,6 +20,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -285,5 +287,109 @@ class RutinasTest extends TestIntegracion {
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].nombre").value("Fuerza 1"))
                 .andExpect(jsonPath("$[0].creadaPor").value("Beto Lopez"));
+    }
+
+    // ---------------------------------------------- RF2: edicion y baja; RS08: control por estado
+
+    private String urlRutina(Usuario atletaDe, Rutina rutina) {
+        return "/api/entrenador/atletas/" + atletaDe.getId() + "/rutinas/" + rutina.getId();
+    }
+
+    @Test
+    @DisplayName("RF2: el entrenador edita una rutina que asigno y que todavia no se ejecuto")
+    void editaRutinaSinEjecuciones() throws Exception {
+        crearVinculoActivo(entrenador, atleta);
+        Rutina rutina = crearRutinaAsignada(entrenador, atleta, "Fuerza semana 1");
+        MockHttpSession sesion = iniciarSesion("beto@test.com");
+
+        mvc.perform(put(urlRutina(atleta, rutina))
+                        .with(csrf()).session(sesion)
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(cuerpoRutina("Fuerza semana 2"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nombre").value("Fuerza semana 2"));
+
+        assertThat(rutinas.findById(rutina.getId()).orElseThrow().getNombre()).isEqualTo("Fuerza semana 2");
+    }
+
+    @Test
+    @DisplayName("RS08: una rutina que ya tiene ejecuciones no se puede editar (409) y no cambia")
+    void noEditaRutinaConEjecuciones() throws Exception {
+        crearVinculoActivo(entrenador, atleta);
+        Rutina rutina = crearRutinaAsignada(entrenador, atleta, "Fuerza semana 1");
+        crearEjecucion(rutina, LocalDate.now().minusDays(1), 40.0);
+        MockHttpSession sesion = iniciarSesion("beto@test.com");
+
+        mvc.perform(put(urlRutina(atleta, rutina))
+                        .with(csrf()).session(sesion)
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(cuerpoRutina("Cambio tardio"))))
+                .andExpect(status().isConflict());
+
+        assertThat(rutinas.findById(rutina.getId()).orElseThrow().getNombre()).isEqualTo("Fuerza semana 1");
+    }
+
+    @Test
+    @DisplayName("RF2: la baja archiva la rutina; desaparece de los listados y su historial se conserva")
+    void eliminaRutinaYConservaHistorial() throws Exception {
+        crearVinculoActivo(entrenador, atleta);
+        Rutina rutina = crearRutinaAsignada(entrenador, atleta, "Fuerza semana 1");
+        crearEjecucion(rutina, LocalDate.now().minusDays(1), 40.0);
+
+        mvc.perform(delete(urlRutina(atleta, rutina))
+                        .with(csrf()).session(iniciarSesion("beto@test.com")))
+                .andExpect(status().isNoContent());
+
+        MockHttpSession sesionAtleta = iniciarSesion("ana@test.com");
+        mvc.perform(get("/api/atleta/rutinas").session(sesionAtleta))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+        mvc.perform(get("/api/atleta/ejecuciones").session(sesionAtleta))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    @DisplayName("RS08: una rutina archivada no se puede editar ni ejecutar (404)")
+    void rutinaArchivadaNoSeEditaNiEjecuta() throws Exception {
+        crearVinculoActivo(entrenador, atleta);
+        Rutina rutina = crearRutinaAsignada(entrenador, atleta, "Fuerza semana 1");
+        rutina.archivar();
+        rutinas.save(rutina);
+
+        mvc.perform(put(urlRutina(atleta, rutina))
+                        .with(csrf()).session(iniciarSesion("beto@test.com"))
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(cuerpoRutina("Revivida"))))
+                .andExpect(status().isNotFound());
+
+        mvc.perform(post("/api/atleta/rutinas/" + rutina.getId() + "/ejecuciones")
+                        .with(csrf()).session(iniciarSesion("ana@test.com"))
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(cuerpoEjecucion(rutina, LocalDate.now(), 40.0))))
+                .andExpect(status().isNotFound());
+
+        assertThat(ejecuciones.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("RF2: el entrenador no edita ni borra la rutina de un atleta que no es suyo (404)")
+    void noEditaNiBorraRutinaDeAtletaAjeno() throws Exception {
+        crearVinculoActivo(otroEntrenador, otroAtleta);
+        Rutina ajena = crearRutinaAsignada(otroEntrenador, otroAtleta, "Ajena");
+        MockHttpSession sesion = iniciarSesion("beto@test.com");
+
+        mvc.perform(put(urlRutina(otroAtleta, ajena))
+                        .with(csrf()).session(sesion)
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(cuerpoRutina("Hackeada"))))
+                .andExpect(status().isNotFound());
+        mvc.perform(delete(urlRutina(otroAtleta, ajena))
+                        .with(csrf()).session(sesion))
+                .andExpect(status().isNotFound());
+
+        Rutina sinCambios = rutinas.findById(ajena.getId()).orElseThrow();
+        assertThat(sinCambios.getNombre()).isEqualTo("Ajena");
+        assertThat(sinCambios.archivada()).isFalse();
     }
 }

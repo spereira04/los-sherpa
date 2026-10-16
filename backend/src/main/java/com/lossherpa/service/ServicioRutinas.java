@@ -6,7 +6,6 @@ import com.lossherpa.domain.Rutina;
 import com.lossherpa.domain.Usuario;
 import com.lossherpa.error.ConflictoException;
 import com.lossherpa.error.RecursoNoEncontradoException;
-import com.lossherpa.error.ReglaNegocioException;
 import com.lossherpa.repository.EjecucionRepository;
 import com.lossherpa.repository.RutinaRepository;
 import com.lossherpa.security.UsuarioActual;
@@ -102,10 +101,7 @@ public class ServicioRutinas {
         if (!rutina.getAtleta().getId().equals(idAtleta)) {
             throw new RecursoNoEncontradoException("La rutina no pertenece a ese atleta");
         }
-        if (datos.tieneCamposNoPermitidos()) {
-            throw new ReglaNegocioException(
-                    "Los campos de autorizacion no son editables en la rutina");
-        }
+        // RS08: la edicion depende del estado de la rutina: archivada no existe, ejecutada no cambia.
         if (rutina.archivada()) {
             throw new RecursoNoEncontradoException("La rutina ya no existe o fue archivada");
         }

@@ -91,7 +91,7 @@ Para empezar de cero, borrá la base: `rm -f data/sherpa.db`.
 
 ## Verificar los controles de seguridad en la app
 
-Los 185 tests cubren esto, pero con el seed cargado también se puede comprobar a mano.
+Los 272 tests cubren esto, pero con el seed cargado también se puede comprobar a mano.
 
 ### RS04 — control de acceso a nivel de dato
 
@@ -196,7 +196,7 @@ cd backend
 ./mvnw test
 ```
 
-Son **185 tests** entre unitarios y de integración. La mayoría verifica los controles de
+Son **272 tests** entre unitarios y de integración. La mayoría verifica los controles de
 seguridad: 401 sin sesión, 403 fuera de rol, IDOR entre atletas y entre entrenadores,
 visibilidad de rutinas propias, efecto inmediato de la desvinculación y del borrado de
 usuarios, mass assignment, CSRF, estáticos y formato de los logs. El detalle de qué test
@@ -296,7 +296,7 @@ que necesita bajar algo (por ejemplo `spring-boot:run` la primera vez). Corrélo
 
 ```
 LosSherpa/
-├─ backend/     Spring Boot 3.3 + Java 21 (API y, en modo prod, los estáticos)
+├─ backend/     Spring Boot 3.5 + Java 21 (API y, en modo prod, los estáticos)
 ├─ frontend/    React + Vite + TypeScript
 ├─ data/        sherpa.db (fuera de cualquier directorio servido)
 ├─ logs/        app.log y auditoria.log (fuera de cualquier directorio servido)
@@ -309,5 +309,5 @@ LosSherpa/
 ## Fuera de alcance
 
 No se implementan, por definición del sprint: facturación, subida de archivos, edición de
-rutinas o de ejecuciones, feedback del entrenador, notificaciones, recuperación de
-contraseña, rate limiting y Docker.
+ejecuciones, feedback del entrenador, notificaciones, recuperación y cambio de contraseña,
+rate limiting y Docker.

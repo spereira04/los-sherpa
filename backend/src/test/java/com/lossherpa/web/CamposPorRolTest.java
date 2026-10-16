@@ -505,7 +505,7 @@ class CamposPorRolTest extends TestIntegracion {
     // ---------------------------------------------- escritura: rutinas, ejecuciones, solicitudes
 
     @Test
-    @DisplayName("RS06 escritura: las rutinas rechazan origen, dueno, creador y fecha, y tambien dentro de cada ejercicio")
+    @DisplayName("RS06 escritura: las rutinas (alta y edicion) rechazan origen, dueno, creador y fecha, y tambien dentro de cada ejercicio")
     void rutinasRechazanCamposProhibidos() throws Exception {
         List<String> prohibidos = List.of("id", "atleta", "idAtleta", "origen",
                 "entrenadorCreador", "creadaEn", "creadoEn");
@@ -514,6 +514,13 @@ class CamposPorRolTest extends TestIntegracion {
                 "/api/atleta/rutinas", iniciarSesion("ana@test.com"), rutinaNueva(), prohibidos);
         rechazaCamposProhibidos("POST /api/entrenador/atletas/{id}/rutinas", HttpMethod.POST,
                 "/api/entrenador/atletas/" + ana.getId() + "/rutinas",
+                iniciarSesion("beto@test.com"), rutinaNueva(), prohibidos);
+
+        // RF2: la edicion es una lista blanca, no una lista negra; un campo extra cualquiera
+        // (por ejemplo "id") tambien da 400 en lugar de ignorarse.
+        Rutina editable = crearRutinaAsignada(beto, ana, "Para editar");
+        rechazaCamposProhibidos("PUT /api/entrenador/atletas/{id}/rutinas/{idRutina}", HttpMethod.PUT,
+                "/api/entrenador/atletas/" + ana.getId() + "/rutinas/" + editable.getId(),
                 iniciarSesion("beto@test.com"), rutinaNueva(), prohibidos);
 
         // Campos que el cliente tampoco decide a nivel de ejercicio.

@@ -2,9 +2,7 @@ package com.lossherpa.web.controller;
 
 import com.lossherpa.domain.Usuario;
 import com.lossherpa.error.CredencialesInvalidasException;
-import com.lossherpa.repository.UsuarioRepository;
 import com.lossherpa.security.AuditorAcceso;
-import com.lossherpa.security.UsuarioAutenticado;
 import com.lossherpa.service.PoliticaContrasena;
 import com.lossherpa.service.ServicioAutenticacion;
 import com.lossherpa.service.ServicioUsuarios;
@@ -44,20 +42,17 @@ import java.util.Arrays;
 public class AuthController {
 
     private final ServicioAutenticacion servicioAutenticacion;
-    private final UsuarioRepository usuarios;
     private final AuthenticationManager authenticationManager;
     private final SessionAuthenticationStrategy estrategiaSesion;
     private final SecurityContextRepository contextRepository;
     private final AuditorAcceso auditor;
 
     public AuthController(ServicioAutenticacion servicioAutenticacion,
-                          UsuarioRepository usuarios,
                           AuthenticationManager authenticationManager,
                           SessionAuthenticationStrategy estrategiaSesion,
                           SecurityContextRepository contextRepository,
                           AuditorAcceso auditor) {
         this.servicioAutenticacion = servicioAutenticacion;
-        this.usuarios = usuarios;
         this.authenticationManager = authenticationManager;
         this.estrategiaSesion = estrategiaSesion;
         this.contextRepository = contextRepository;
@@ -111,10 +106,8 @@ public class AuthController {
             SecurityContextHolder.setContext(contexto);
             contextRepository.saveContext(contexto, request, response);
 
-            UsuarioAutenticado principal = (UsuarioAutenticado) autenticacion.getPrincipal();
-            return usuarios.findById(principal.getId())
-                    .map(SesionResponse::de)
-                    .orElseThrow(CredencialesInvalidasException::new);
+            // RS16: el usuario sale del contexto recien guardado, via el servicio.
+            return SesionResponse.de(servicioAutenticacion.usuarioDeLaSesion());
 
         } catch (AuthenticationException e) {
             // RS12: queda el intento con el email, nunca la contrasena.
@@ -129,8 +122,6 @@ public class AuthController {
     /** Usuario de la sesion actual. Lo usa el frontend al cargar para restaurar el estado. */
     @GetMapping("/auth/yo")
     public SesionResponse yo() {
-        return usuarios.findById(com.lossherpa.security.UsuarioActual.id())
-                .map(SesionResponse::de)
-                .orElseThrow(CredencialesInvalidasException::new);
+        return SesionResponse.de(servicioAutenticacion.usuarioDeLaSesion());
     }
 }

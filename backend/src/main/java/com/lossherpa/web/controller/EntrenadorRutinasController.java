@@ -1,6 +1,5 @@
 package com.lossherpa.web.controller;
 
-import com.lossherpa.error.ReglaNegocioException;
 import com.lossherpa.service.ServicioEjecuciones;
 import com.lossherpa.service.ServicioRutinas;
 import com.lossherpa.web.dto.in.ActualizarRutinaRequest;
@@ -63,10 +62,6 @@ public class EntrenadorRutinasController {
     public RutinaResponse actualizarRutina(@PathVariable UUID idAtleta,
                                           @PathVariable UUID idRutina,
                                           @Valid @RequestBody ActualizarRutinaRequest datos) {
-        if (datos.tieneCamposNoPermitidos()) {
-            throw new ReglaNegocioException(
-                    "Los campos de autorizacion no son editables en la rutina");
-        }
         return RutinaResponse.de(servicioRutinas.actualizarAsignada(idAtleta, idRutina, datos));
     }
 
