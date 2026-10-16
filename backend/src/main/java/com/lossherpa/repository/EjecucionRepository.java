@@ -21,6 +21,8 @@ public interface EjecucionRepository extends JpaRepository<Ejecucion, UUID> {
     @Query("select e from Ejecucion e where e.atleta.id = :atletaId")
     List<Ejecucion> listarTodasDelAtleta(@Param("atletaId") UUID atletaId);
 
+    boolean existsByRutinaId(UUID rutinaId);
+
     @EntityGraph(attributePaths = {"rutina", "series", "series.ejercicio"})
     @Query("""
             select distinct e from Ejecucion e
