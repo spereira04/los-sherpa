@@ -160,6 +160,10 @@ public class PoliticaAcceso {
                     Atributo.ASIGNADA_POR_MI),
             new Regla(POST, "/api/entrenador/atletas/{idAtleta}/rutinas", Acceso.ENTRENADOR,
                     Atributo.VINCULO_VIGENTE),
+            new Regla(PUT, "/api/entrenador/atletas/{idAtleta}/rutinas/{idRutina}",
+                    Acceso.ENTRENADOR, Atributo.ASIGNADA_POR_MI),
+            new Regla(DELETE, "/api/entrenador/atletas/{idAtleta}/rutinas/{idRutina}",
+                    Acceso.ENTRENADOR, Atributo.ASIGNADA_POR_MI),
             new Regla(GET, "/api/entrenador/atletas/{idAtleta}/ejecuciones", Acceso.ENTRENADOR,
                     Atributo.ASIGNADA_POR_MI),
 

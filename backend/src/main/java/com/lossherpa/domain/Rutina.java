@@ -24,7 +24,9 @@ import java.util.UUID;
 
 /**
  * Rutina perteneciente siempre a un atleta (el dueno del dato).
- * No se edita en esta version: solo se crea y se lee.
+ *
+ * RF2: se admite edicion de la rutina solo para la version asignada por un entrenador, y
+ * el borrado se resuelve como baja logica para conservar el historial del atleta.
  */
 @Entity
 @Table(name = "rutinas")
@@ -37,7 +39,7 @@ public class Rutina {
     @Column(length = 36, nullable = false, updatable = false)
     private UUID id;
 
-    @Column(nullable = false, updatable = false, length = 120)
+    @Column(nullable = false, length = 120)
     private String nombre;
 
     /** Dueno del recurso. RS04: toda consulta de rutinas filtra por esta columna. */
@@ -56,6 +58,12 @@ public class Rutina {
 
     @Column(name = "creada_en", nullable = false, updatable = false)
     private Instant creadaEn = Instant.now();
+
+    @Column(length = 500)
+    private String observaciones;
+
+    @Column(name = "archivada_en")
+    private Instant archivadaEn;
 
     @OneToMany(mappedBy = "rutina", cascade = CascadeType.ALL, orphanRemoval = true,
             fetch = FetchType.LAZY)
@@ -86,8 +94,40 @@ public class Rutina {
     }
 
     public void agregarEjercicio(String nombreEjercicio, int series, int repeticiones) {
+        agregarEjercicio(nombreEjercicio, series, repeticiones, null);
+    }
+
+    public void agregarEjercicio(String nombreEjercicio, int series, int repeticiones,
+                                String observaciones) {
         ejercicios.add(new EjercicioRutina(this, ejercicios.size() + 1, nombreEjercicio, series,
-                repeticiones));
+                repeticiones, observaciones));
+    }
+
+    public void cambiarNombre(String nombre) {
+        this.nombre = nombre;
+    }
+
+    public void actualizarObservaciones(String observaciones) {
+        this.observaciones = observaciones == null ? null : observaciones.trim();
+    }
+
+    public void reemplazarEjercicios(List<EjercicioRutina> nuevos) {
+        ejercicios.clear();
+        for (int i = 0; i < nuevos.size(); i++) {
+            EjercicioRutina ejercicio = nuevos.get(i);
+            ejercicio.asignarRutina(this, i + 1);
+            ejercicio.actualizar(ejercicio.getNombre(), ejercicio.getSeries(),
+                    ejercicio.getRepeticiones(), ejercicio.getObservaciones());
+            ejercicios.add(ejercicio);
+        }
+    }
+
+    public void archivar() {
+        archivadaEn = Instant.now();
+    }
+
+    public boolean archivada() {
+        return archivadaEn != null;
     }
 
     public UUID getId() {
@@ -112,6 +152,14 @@ public class Rutina {
 
     public Instant getCreadaEn() {
         return creadaEn;
+    }
+
+    public String getObservaciones() {
+        return observaciones;
+    }
+
+    public Instant getArchivadaEn() {
+        return archivadaEn;
     }
 
     public List<EjercicioRutina> getEjercicios() {

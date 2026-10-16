@@ -41,7 +41,10 @@ public record CrearRutinaRequest(
 
             @Min(value = 1, message = "Las repeticiones tienen que ser al menos 1")
             @Max(value = 500, message = "Las repeticiones no pueden superar 500")
-            int repeticiones
+            int repeticiones,
+
+            @Size(max = 500, message = "Las observaciones del ejercicio son demasiado largas")
+            String observaciones
     ) {
     }
 }
