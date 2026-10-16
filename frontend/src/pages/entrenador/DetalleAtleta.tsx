@@ -120,6 +120,7 @@ export function DetalleAtleta() {
         <p>
           Edad: {atleta.datos.edad} anos · Peso: {atleta.datos.pesoKg ?? '—'} kg
         </p>
+        {atleta.datos.telefono !== undefined && <p>Telefono: {atleta.datos.telefono}</p>}
         <p>{atleta.datos.descripcion ?? 'Sin descripcion.'}</p>
       </Tarjeta>
 

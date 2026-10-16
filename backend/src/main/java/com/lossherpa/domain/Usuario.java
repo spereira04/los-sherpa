@@ -63,6 +63,15 @@ public class Usuario {
     @Column(name = "anios_servicio")
     private Integer aniosServicio;
 
+    /** RF7: telefono de contacto, opcional. Dato personal (RS06): ver PerfilPublicoResponse. */
+    @Column(length = 30)
+    private String telefono;
+
+    /** RF7: preferencia de modo visual. La fuente de verdad es el perfil, no el navegador. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 10)
+    private Tema tema = Tema.SISTEMA;
+
     @Column(name = "creado_en", nullable = false, updatable = false)
     private Instant creadoEn = Instant.now();
 
@@ -146,6 +155,23 @@ public class Usuario {
 
     public void setAniosServicio(Integer aniosServicio) {
         this.aniosServicio = aniosServicio;
+    }
+
+    public String getTelefono() {
+        return telefono;
+    }
+
+    public void setTelefono(String telefono) {
+        this.telefono = telefono;
+    }
+
+    public Tema getTema() {
+        // Filas anteriores a RF7 quedan con la columna en null.
+        return tema == null ? Tema.SISTEMA : tema;
+    }
+
+    public void setTema(Tema tema) {
+        this.tema = tema;
     }
 
     public Instant getCreadoEn() {

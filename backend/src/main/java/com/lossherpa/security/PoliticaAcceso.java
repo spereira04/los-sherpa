@@ -126,6 +126,8 @@ public class PoliticaAcceso {
             new Regla(GET, "/api/auth/yo", Acceso.AUTENTICADO, Atributo.PROPIO),
             new Regla(GET, "/api/perfil", Acceso.AUTENTICADO, Atributo.PROPIO),
             new Regla(PUT, "/api/perfil", Acceso.AUTENTICADO, Atributo.PROPIO),
+            // RF7
+            new Regla(PUT, "/api/perfil/preferencias", Acceso.AUTENTICADO, Atributo.PROPIO),
 
             // --- Atleta ---
             new Regla(GET, "/api/atleta/rutinas", Acceso.ATLETA, Atributo.DUENO),
