@@ -296,6 +296,23 @@ class RutinasTest extends TestIntegracion {
     }
 
     @Test
+    @DisplayName("RF2: el entrenador edita una rutina que asigno y que todavia no se ejecuto")
+    void editaRutinaSinEjecuciones() throws Exception {
+        crearVinculoActivo(entrenador, atleta);
+        Rutina rutina = crearRutinaAsignada(entrenador, atleta, "Fuerza semana 1");
+        MockHttpSession sesion = iniciarSesion("beto@test.com");
+
+        mvc.perform(put(urlRutina(atleta, rutina))
+                        .with(csrf()).session(sesion)
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(cuerpoRutina("Fuerza semana 2"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nombre").value("Fuerza semana 2"));
+
+        assertThat(rutinas.findById(rutina.getId()).orElseThrow().getNombre()).isEqualTo("Fuerza semana 2");
+    }
+
+    @Test
     @DisplayName("RS08: una rutina que ya tiene ejecuciones no se puede editar (409) y no cambia")
     void noEditaRutinaConEjecuciones() throws Exception {
         crearVinculoActivo(entrenador, atleta);
@@ -310,6 +327,26 @@ class RutinasTest extends TestIntegracion {
                 .andExpect(status().isConflict());
 
         assertThat(rutinas.findById(rutina.getId()).orElseThrow().getNombre()).isEqualTo("Fuerza semana 1");
+    }
+
+    @Test
+    @DisplayName("RF2: la baja archiva la rutina; desaparece de los listados y su historial se conserva")
+    void eliminaRutinaYConservaHistorial() throws Exception {
+        crearVinculoActivo(entrenador, atleta);
+        Rutina rutina = crearRutinaAsignada(entrenador, atleta, "Fuerza semana 1");
+        crearEjecucion(rutina, LocalDate.now().minusDays(1), 40.0);
+
+        mvc.perform(delete(urlRutina(atleta, rutina))
+                        .with(csrf()).session(iniciarSesion("beto@test.com")))
+                .andExpect(status().isNoContent());
+
+        MockHttpSession sesionAtleta = iniciarSesion("ana@test.com");
+        mvc.perform(get("/api/atleta/rutinas").session(sesionAtleta))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+        mvc.perform(get("/api/atleta/ejecuciones").session(sesionAtleta))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
     }
 
     @Test
@@ -333,5 +370,26 @@ class RutinasTest extends TestIntegracion {
                 .andExpect(status().isNotFound());
 
         assertThat(ejecuciones.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("RF2: el entrenador no edita ni borra la rutina de un atleta que no es suyo (404)")
+    void noEditaNiBorraRutinaDeAtletaAjeno() throws Exception {
+        crearVinculoActivo(otroEntrenador, otroAtleta);
+        Rutina ajena = crearRutinaAsignada(otroEntrenador, otroAtleta, "Ajena");
+        MockHttpSession sesion = iniciarSesion("beto@test.com");
+
+        mvc.perform(put(urlRutina(otroAtleta, ajena))
+                        .with(csrf()).session(sesion)
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(cuerpoRutina("Hackeada"))))
+                .andExpect(status().isNotFound());
+        mvc.perform(delete(urlRutina(otroAtleta, ajena))
+                        .with(csrf()).session(sesion))
+                .andExpect(status().isNotFound());
+
+        Rutina sinCambios = rutinas.findById(ajena.getId()).orElseThrow();
+        assertThat(sinCambios.getNombre()).isEqualTo("Ajena");
+        assertThat(sinCambios.archivada()).isFalse();
     }
 }

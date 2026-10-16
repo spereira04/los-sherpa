@@ -91,7 +91,7 @@ Para empezar de cero, borrá la base: `rm -f data/sherpa.db`.
 
 ## Verificar los controles de seguridad en la app
 
-Los 269 tests cubren esto, pero con el seed cargado también se puede comprobar a mano.
+Los 272 tests cubren esto, pero con el seed cargado también se puede comprobar a mano.
 
 ### RS04 — control de acceso a nivel de dato
 
@@ -196,7 +196,7 @@ cd backend
 ./mvnw test
 ```
 
-Son **269 tests** entre unitarios y de integración. La mayoría verifica los controles de
+Son **272 tests** entre unitarios y de integración. La mayoría verifica los controles de
 seguridad: 401 sin sesión, 403 fuera de rol, IDOR entre atletas y entre entrenadores,
 visibilidad de rutinas propias, efecto inmediato de la desvinculación y del borrado de
 usuarios, mass assignment, CSRF, estáticos y formato de los logs. El detalle de qué test

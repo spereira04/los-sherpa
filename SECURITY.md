@@ -6,7 +6,7 @@ lo cubren. En el código, cada punto está marcado con un comentario (`// RS04`,
 Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las de tests a
 `backend/src/test/java/com/lossherpa/`.
 
-**Estado de la suite: 269 tests, todos en verde** (`cd backend && ./mvnw test`).
+**Estado de la suite: 272 tests, todos en verde** (`cd backend && ./mvnw test`).
 
 ---
 
@@ -28,7 +28,7 @@ Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las
 | RS12 | Logs de autorización | ✅ | ver RS12 |
 | RS13 | Deny by default, incluidos los estáticos | ✅ | `web/EstaticosTest` |
 | RS14 | Sin configuración por defecto | ✅ | ver RS14 |
-| RS15 | Tests unitarios y de integración | ✅ | 269 tests |
+| RS15 | Tests unitarios y de integración | ✅ | 272 tests |
 | RS16 | Toda request pasa por el control de acceso | ✅ | `security/CoberturaControlAccesoTest`, `security/IdentidadDesdeLaSesionTest` |
 | RS17 | Protección de logs | ✅ | `security/SanitizadorLogTest` |
 | RS18 | Deny by default ante errores (fail closed) | ✅ | `security/FallaCerradaTest`, `security/FallaCerradaRealTest`, `security/PoliticaAccesoFallaCerradaTest` |
@@ -780,7 +780,7 @@ al servir por HTTPS.
 
 ## RS15 — Tests unitarios y de integración
 
-**269 tests** con JUnit 5, Spring Boot Test y MockMvc, concentrados en la lógica de negocio y
+**272 tests** con JUnit 5, Spring Boot Test y MockMvc, concentrados en la lógica de negocio y
 sobre todo en los controles de seguridad.
 
 | Clase | Tests | Qué cubre |
