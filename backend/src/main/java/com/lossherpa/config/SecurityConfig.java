@@ -1,9 +1,12 @@
 package com.lossherpa.config;
 
 import com.lossherpa.security.AuditorAcceso;
+import com.lossherpa.security.DenegacionPorDefecto;
 import com.lossherpa.security.FiltroSesionVigente;
 import com.lossherpa.security.ManejadorAccesoDenegado;
+import com.lossherpa.security.PoliticaAcceso;
 import com.lossherpa.security.PuntoEntradaNoAutenticado;
+import com.lossherpa.security.RespuestaErrorSeguridad;
 import com.lossherpa.security.ServicioDetallesUsuario;
 import com.lossherpa.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -30,6 +34,7 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.firewall.RequestRejectedHandler;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.web.cors.CorsConfiguration;
@@ -41,9 +46,12 @@ import java.util.List;
 /**
  * Configuracion central de seguridad.
  *
- * RS13 - Deny by default: la cadena termina en anyRequest().denyAll(). Todo lo que se sirve
- *        esta enumerado: los tres endpoints publicos, las rutas de API por rol y la lista
- *        blanca de archivos del build del frontend.
+ * RS01 - PEP central: las reglas de autorizacion salen de PoliticaAcceso (metodo + patron
+ *        exacto + requisito), no se escriben a mano aca.
+ * RS02 - Deny by default para requests no contempladas: lo que no coincide con ninguna
+ *        regla lo resuelve DenegacionPorDefecto, que siempre deniega y audita.
+ * RS13 - Deny by default: todo lo que se sirve esta enumerado en la politica: los tres
+ *        endpoints publicos, la API por rol y la lista blanca de archivos del build.
  * RS14 - Sin configuracion por defecto: no hay usuario ni password generados por Spring
  *        Security, no hay http basic ni formulario de login propio, CORS restringido por
  *        variable de entorno y cabeceras de seguridad explicitas.
@@ -51,15 +59,6 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
-
-    /** Rutas del SPA que deben devolver index.html. Todo lo demas se deniega (RS13). */
-    static final String[] RUTAS_SPA = {
-            "/", "/index.html", "/favicon.ico", "/assets/**",
-            "/login", "/registro",
-            "/entrenador", "/entrenador/**",
-            "/atleta", "/atleta/**",
-            "/admin", "/admin/**"
-    };
 
     private final String[] origenesCors;
     private final int costoBcrypt;
@@ -129,6 +128,22 @@ public class SecurityConfig {
         return new FiltroSesionVigente(usuarios, auditor);
     }
 
+    /**
+     * RS02: el firewall de Spring Security (StrictHttpFirewall) rechaza antes de autorizar
+     * lo que ni siquiera es una request valida: TRACE y otros metodos fuera de su lista,
+     * paths con ";", "..", "//" o caracteres codificados. Por defecto responde 400 sin dejar
+     * rastro; aca se audita y se responde el mismo JSON generico que el resto de los errores.
+     */
+    @Bean
+    public RequestRejectedHandler requestRejectedHandler(AuditorAcceso auditor) {
+        return (request, response, excepcion) -> {
+            auditor.denegado(request, null, HttpStatus.BAD_REQUEST.value(),
+                    "request rechazada por el firewall");
+            RespuestaErrorSeguridad.escribir(response, HttpStatus.BAD_REQUEST.value(),
+                    "La solicitud no es valida");
+        };
+    }
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         // RS14: CORS restringido al origen del dev server de Vite, configurable por entorno.
@@ -150,7 +165,9 @@ public class SecurityConfig {
                                            PuntoEntradaNoAutenticado puntoEntrada,
                                            ManejadorAccesoDenegado manejadorDenegado,
                                            SessionAuthenticationStrategy estrategiaSesion,
-                                           SecurityContextRepository contextRepository)
+                                           SecurityContextRepository contextRepository,
+                                           PoliticaAcceso politica,
+                                           DenegacionPorDefecto denegacionPorDefecto)
             throws Exception {
 
         // CSRF compatible con SPA: cookie XSRF-TOKEN legible por JS, el cliente la reenvia
@@ -208,24 +225,22 @@ public class SecurityConfig {
                     .permissionsPolicy(pp -> pp.policy(
                             "geolocation=(), camera=(), microphone=(), payment=()")))
 
-            .authorizeHttpRequests(auth -> auth
-                    // --- Lista blanca de endpoints publicos (RS13) ---
-                    .requestMatchers("/api/csrf").permitAll()
-                    .requestMatchers("/api/auth/login", "/api/auth/registro").permitAll()
-
-                    // --- API por rol: el rol se valida aca y otra vez en el servicio ---
-                    .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                    .requestMatchers("/api/entrenador/**").hasRole("ENTRENADOR")
-                    .requestMatchers("/api/atleta/**").hasRole("ATLETA")
-                    .requestMatchers("/api/auth/yo", "/api/auth/logout").authenticated()
-                    .requestMatchers("/api/perfil").authenticated()
-
-                    // --- Estaticos: solo los archivos del build del frontend (RS13) ---
-                    .requestMatchers(RUTAS_SPA).permitAll()
-
-                    // RS13: deny by default. Cualquier otro path (incluidos /actuator,
-                    // /h2-console, /swagger-ui o un path de API inexistente) se deniega.
-                    .anyRequest().denyAll())
+            .authorizeHttpRequests(auth -> {
+                // RS01: primer punto de aplicacion de la politica. Una regla por endpoint,
+                // con su metodo y su patron exactos, tomada de PoliticaAcceso. La decision
+                // de rol la toma la politica, no esta configuracion.
+                for (PoliticaAcceso.Regla regla : politica.reglas()) {
+                    auth.requestMatchers(regla.metodo(), regla.patron())
+                            .access((autenticacion, contexto) -> {
+                                politica.exigir(regla, autenticacion);
+                                return new AuthorizationDecision(true);
+                            });
+                }
+                // RS02 + RS13: deny by default. Path inexistente, metodo no declarado,
+                // /actuator, /h2-console, un estatico fuera del build: todo se deniega y
+                // se audita como request no contemplada.
+                auth.anyRequest().access(denegacionPorDefecto);
+            })
 
             // RS10: se refresca el principal desde la base ANTES de autorizar.
             .addFilterBefore(filtroSesionVigente, AuthorizationFilter.class);
