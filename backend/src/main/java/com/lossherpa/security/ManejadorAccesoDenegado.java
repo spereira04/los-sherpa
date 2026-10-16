@@ -1,5 +1,7 @@
 package com.lossherpa.security;
 
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
@@ -28,13 +30,21 @@ public class ManejadorAccesoDenegado implements AccessDeniedHandler {
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        AccessDeniedException excepcion) throws IOException {
         auditor.denegado(request, UsuarioActual.idOpcional().map(Object::toString).orElse(null),
-                HttpStatus.FORBIDDEN.value(), motivoDe(excepcion));
+                HttpStatus.FORBIDDEN.value(), motivoDe(request, excepcion));
         RespuestaErrorSeguridad.escribir(response, HttpStatus.FORBIDDEN.value(),
                 "No tiene permisos para realizar esta accion");
     }
 
     /** RS12: el motivo real queda en el log; al cliente le llega siempre el mismo 403. */
-    static String motivoDe(AccessDeniedException excepcion) {
+    static String motivoDe(HttpServletRequest request, AccessDeniedException excepcion) {
+        // RS18: una excepcion que se escapo de todo handler vuelve como dispatch ERROR hacia
+        // /error, que la politica deniega (RS13). La request no pasa y el cliente recibe 403,
+        // pero el log tiene que decir que fue un error interno y no un intento de acceso.
+        if (request.getDispatcherType() == DispatcherType.ERROR) {
+            return "error interno no manejado (HTTP "
+                    + request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE)
+                    + "), denegado al reenviar a /error";
+        }
         if (excepcion instanceof AccesoDenegadoPorPolitica denegacion) {
             return denegacion.getMotivo();
         }

@@ -1,9 +1,13 @@
 package com.lossherpa.security;
 
 import com.lossherpa.domain.Rol;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -26,6 +30,8 @@ import java.util.function.Supplier;
  *        reconstruye FiltroSesionVigente desde la base, nunca con algo que mande el cliente.
  * RS08 - Control de acceso por rol en el servidor (definicion del Informe v1, a confirmar
  *        con el equipo: ver SECURITY.md).
+ * RS18 - Fail closed: si evaluar la regla lanza una excepcion que no es 401 ni 403, el
+ *        resultado es 403, nunca permitir.
  *
  * La tabla es la misma que figura en SECURITY.md ("Politica de autorizacion").
  */
@@ -190,6 +196,8 @@ public class PoliticaAcceso {
             // (ni el forward de error del contenedor) lo puede usar para devolver datos.
             new Regla(null, "/error", Acceso.DENEGADO, Atributo.NINGUNO));
 
+    private static final Logger LOG = LoggerFactory.getLogger(PoliticaAcceso.class);
+
     private final List<Regla> reglas;
 
     public PoliticaAcceso() {
@@ -223,6 +231,23 @@ public class PoliticaAcceso {
      * necesita, y asi una ruta denegada sin sesion sigue siendo 403 (RS13).
      */
     public void exigir(Regla regla, Supplier<Authentication> autenticacion) {
+        try {
+            evaluar(regla, autenticacion);
+        } catch (AccessDeniedException | AuthenticationException esperada) {
+            // 403 y 401 son decisiones de la politica, no fallas: siguen su camino.
+            throw esperada;
+        } catch (RuntimeException falla) {
+            // RS18 - Fail closed: si la politica no puede decidir, la respuesta es denegar.
+            // Nunca "no pude evaluar, asi que sigo". El motivo lleva solo el nombre de la clase
+            // de la excepcion (RS17); el detalle va al log de la aplicacion.
+            LOG.error("La politica de acceso fallo al evaluar {}", regla.descripcion(), falla);
+            throw new AccesoDenegadoPorPolitica("error al evaluar la politica ("
+                    + falla.getClass().getSimpleName() + ")");
+        }
+    }
+
+    /** La decision en si. Aparte de exigir() para que el fail closed envuelva a todos los casos. */
+    void evaluar(Regla regla, Supplier<Authentication> autenticacion) {
         switch (regla.acceso()) {
             case PUBLICO -> {
             }
