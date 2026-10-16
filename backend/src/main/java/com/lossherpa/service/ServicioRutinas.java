@@ -101,6 +101,7 @@ public class ServicioRutinas {
         if (!rutina.getAtleta().getId().equals(idAtleta)) {
             throw new RecursoNoEncontradoException("La rutina no pertenece a ese atleta");
         }
+        // RS08: la edicion depende del estado de la rutina: archivada no existe, ejecutada no cambia.
         if (rutina.archivada()) {
             throw new RecursoNoEncontradoException("La rutina ya no existe o fue archivada");
         }

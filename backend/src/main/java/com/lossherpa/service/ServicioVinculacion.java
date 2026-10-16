@@ -97,6 +97,7 @@ public class ServicioVinculacion {
                 .buscarDeAtleta(idSolicitud, UsuarioActual.id())
                 .orElseThrow(RecursoNoEncontradoException::generico);
 
+        // RS08: solo una solicitud PENDIENTE se puede cancelar, aceptar o rechazar.
         if (!solicitud.estaPendiente()) {
             throw new ConflictoException("Esa solicitud ya no esta pendiente");
         }
@@ -144,6 +145,7 @@ public class ServicioVinculacion {
                 .buscarDeEntrenador(idSolicitud, entrenador.getId())
                 .orElseThrow(RecursoNoEncontradoException::generico);
 
+        // RS08: solo una solicitud PENDIENTE se puede cancelar, aceptar o rechazar.
         if (!solicitud.estaPendiente()) {
             throw new ConflictoException("Esa solicitud ya fue resuelta");
         }
@@ -174,6 +176,7 @@ public class ServicioVinculacion {
                 .buscarDeEntrenador(idSolicitud, entrenador.getId())
                 .orElseThrow(RecursoNoEncontradoException::generico);
 
+        // RS08: solo una solicitud PENDIENTE se puede cancelar, aceptar o rechazar.
         if (!solicitud.estaPendiente()) {
             throw new ConflictoException("Esa solicitud ya fue resuelta");
         }

@@ -6,7 +6,7 @@ lo cubren. En el código, cada punto está marcado con un comentario (`// RS04`,
 Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las de tests a
 `backend/src/test/java/com/lossherpa/`.
 
-**Estado de la suite: 267 tests, todos en verde** (`cd backend && ./mvnw test`).
+**Estado de la suite: 269 tests, todos en verde** (`cd backend && ./mvnw test`).
 
 ---
 
@@ -21,14 +21,14 @@ Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las
 | RS05 | Controles solo en el servidor | ✅ | `security/PoliticaAccesoTest.ningunHandlerRecibeRolNiIdentidad`, `security/IdentidadDesdeLaSesionTest` |
 | RS06 | Control por campo / mass assignment (ASVS 8.2.3) | ✅ | `web/CamposPorRolTest`, `web/RegistroTest`, `web/PerfilTest` |
 | RS07 | No exposición de IDs | ✅ | ver RS07 |
-| RS08 | Control por rol en el servidor (definición aplicada del Informe v1) | ✅ | ver RS08 |
+| RS08 | Control de acceso basado en estado | ✅ | `web/RutinasTest`, `web/VinculacionTest` (ver RS08) |
 | RS09 | ❔ Sin definición en el repo | a confirmar con el equipo | — |
 | RS10 | Impacto inmediato de cambios de autorización (ASVS 8.3.2) | ✅ | ver RS10 |
 | RS11 | Métricas financieras | no aplica: no hay facturación en esta versión | — |
 | RS12 | Logs de autorización | ✅ | ver RS12 |
 | RS13 | Deny by default, incluidos los estáticos | ✅ | `web/EstaticosTest` |
 | RS14 | Sin configuración por defecto | ✅ | ver RS14 |
-| RS15 | Tests unitarios y de integración | ✅ | 267 tests |
+| RS15 | Tests unitarios y de integración | ✅ | 269 tests |
 | RS16 | Toda request pasa por el control de acceso | ✅ | `security/CoberturaControlAccesoTest`, `security/IdentidadDesdeLaSesionTest` |
 | RS17 | Protección de logs | ✅ | `security/SanitizadorLogTest` |
 | RS18 | Deny by default ante errores (fail closed) | ✅ | `security/FallaCerradaTest`, `security/FallaCerradaRealTest`, `security/PoliticaAccesoFallaCerradaTest` |
@@ -549,12 +549,25 @@ con el DTO anterior de la solicitud y sin la validación por rol del admin, fall
 
 ---
 
-## RS08 — ⚠️ Definición a confirmar con el equipo
+## RS08 — Control de acceso basado en estado
 
-Se adopta la definición del Informe v1, que agrupa RS01, RS03, RS05 y RS08 bajo
-"control de acceso por rol en el servidor" (amenaza A2). Con esa definición, RS08 queda
-cubierto por la política central (RS01), el modelo RBAC + ABAC (RS03) y los controles solo
-en el servidor (RS05). En el código se marca junto con ellos en `PoliticaAcceso`.
+Se aplica la definición de la sección de requerimientos del Informe: las operaciones dependen
+del **estado del recurso**, no solo del rol y la relación. El servidor lo verifica antes de
+modificar nada y responde 409 (o 404 si el recurso ya no existe para el usuario).
+
+| Recurso | Regla de estado | Respuesta | Dónde |
+|---|---|---|---|
+| Solicitud de vinculación | Solo una solicitud `PENDIENTE` se puede cancelar, aceptar o rechazar | 409 | `ServicioVinculacion` |
+| Solicitud de vinculación | Al aceptar una, las demás pendientes del atleta pasan a `CANCELADA` | — | `ServicioVinculacion.aceptarSolicitud` |
+| Rutina asignada | Una rutina con ejecuciones registradas no se puede editar | 409 | `ServicioRutinas.actualizarAsignada` |
+| Rutina asignada | Una rutina archivada (dada de baja) no se puede editar ni ejecutar | 404 | `ServicioRutinas`, consultas de `RutinaRepository` (`archivadaEn is null`) |
+
+Tests: `RutinasTest.noEditaRutinaConEjecuciones`, `RutinasTest.rutinaArchivadaNoSeEditaNiEjecuta`,
+`VinculacionTest.laOtraSolicitudCanceladaNoSePuedeAceptar`. En el código cada chequeo está
+marcado con `// RS08`.
+
+El control por rol en el servidor que el Informe agrupa con RS08 en la amenaza A2 sigue
+cubierto por RS01, RS03 y RS05 (`PoliticaAcceso`).
 
 RF4 conserva el registro final en un único POST; no introduce estados `EN_CURSO` /
 `FINALIZADA` ni `@Version`, porque eso pertenece a la definición alternativa (numeración vieja)
@@ -767,7 +780,7 @@ al servir por HTTPS.
 
 ## RS15 — Tests unitarios y de integración
 
-**267 tests** con JUnit 5, Spring Boot Test y MockMvc, concentrados en la lógica de negocio y
+**269 tests** con JUnit 5, Spring Boot Test y MockMvc, concentrados en la lógica de negocio y
 sobre todo en los controles de seguridad.
 
 | Clase | Tests | Qué cubre |
