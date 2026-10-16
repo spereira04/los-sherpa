@@ -1,7 +1,5 @@
 package com.lossherpa.web.dto.in;
 
-import com.fasterxml.jackson.annotation.JsonAnySetter;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -10,14 +8,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
- * Lista blanca para actualizar una rutina asignada por el entrenador.
- * Los campos de autorizacion quedan fuera del body y se rechazan con 400 si llegan.
+ * RS06: lista blanca para actualizar una rutina asignada por el entrenador.
+ * Cualquier campo no declarado (origen, atleta, id, creador, fechas) se rechaza con 400:
+ * lo hace Jackson en modo estricto, igual que en el resto de los DTOs de entrada.
  */
 @JsonIgnoreProperties(ignoreUnknown = false)
 public record ActualizarRutinaRequest(
@@ -32,26 +28,8 @@ public record ActualizarRutinaRequest(
         List<EjercicioRequest> ejercicios,
 
         @Size(max = 500, message = "Las observaciones de la rutina son demasiado largas")
-        String observaciones,
-
-        @JsonIgnore
-        Map<String, Object> extras
+        String observaciones
 ) {
-
-    public ActualizarRutinaRequest {
-        extras = extras == null ? new HashMap<>() : extras;
-    }
-
-    @JsonAnySetter
-    public void agregarExtra(String clave, Object valor) {
-        extras.put(clave, valor);
-    }
-
-    public boolean tieneCamposNoPermitidos() {
-        Set<String> prohibidos = Set.of("atleta", "origen", "entrenadorCreador",
-                "entrenador_creador", "creadaEn", "creada_en");
-        return extras.keySet().stream().anyMatch(prohibidos::contains);
-    }
 
     public record EjercicioRequest(
 
