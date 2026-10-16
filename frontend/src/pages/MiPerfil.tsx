@@ -19,6 +19,7 @@ export function MiPerfil() {
   const [descripcion, setDescripcion] = useState('')
   const [pesoKg, setPesoKg] = useState('')
   const [aniosServicio, setAniosServicio] = useState('')
+  const [telefono, setTelefono] = useState('')
   const [errorGuardar, setErrorGuardar] = useState<string | null>(null)
   const [guardado, setGuardado] = useState(false)
   const [guardando, setGuardando] = useState(false)
@@ -33,6 +34,7 @@ export function MiPerfil() {
     setDescripcion(datos.descripcion ?? '')
     setPesoKg(datos.pesoKg === undefined ? '' : String(datos.pesoKg))
     setAniosServicio(datos.aniosServicio === undefined ? '' : String(datos.aniosServicio))
+    setTelefono(datos.telefono ?? '')
   }, [datos])
 
   async function guardar(evento: React.FormEvent) {
@@ -51,6 +53,8 @@ export function MiPerfil() {
         descripcion: descripcion.trim() === '' ? undefined : descripcion,
         pesoKg: datos.rol === 'ATLETA' ? Number(pesoKg) : undefined,
         aniosServicio: datos.rol === 'ENTRENADOR' ? Number(aniosServicio) : undefined,
+        // Vacio lo borra.
+        telefono: telefono.trim() === '' ? null : telefono.trim(),
       })
       setGuardado(true)
       await recargar()
@@ -107,6 +111,14 @@ export function MiPerfil() {
                      onChange={(e) => setAniosServicio(e.target.value)} required />
             </Campo>
           )}
+          <Campo etiqueta="Telefono de contacto (opcional)">
+            <input type="tel" value={telefono} maxLength={30}
+                   onChange={(e) => setTelefono(e.target.value)} />
+          </Campo>
+          <p className="ayuda">
+            Lo ve tu {datos.rol === 'ATLETA' ? 'entrenador' : 'atleta'} mientras el vinculo
+            este vigente. Nadie mas.
+          </p>
           <Campo etiqueta="Descripcion">
             <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)}
                       maxLength={1000} />

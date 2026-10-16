@@ -132,6 +132,8 @@ public class PoliticaAcceso {
             new Regla(GET, "/api/auth/yo", Acceso.AUTENTICADO, Atributo.PROPIO),
             new Regla(GET, "/api/perfil", Acceso.AUTENTICADO, Atributo.PROPIO),
             new Regla(PUT, "/api/perfil", Acceso.AUTENTICADO, Atributo.PROPIO),
+            // RF7
+            new Regla(PUT, "/api/perfil/preferencias", Acceso.AUTENTICADO, Atributo.PROPIO),
 
             // --- Atleta ---
             new Regla(GET, "/api/atleta/rutinas", Acceso.ATLETA, Atributo.DUENO),
@@ -140,6 +142,10 @@ public class PoliticaAcceso {
             new Regla(POST, "/api/atleta/rutinas/{idRutina}/ejecuciones", Acceso.ATLETA,
                     Atributo.DUENO),
             new Regla(GET, "/api/atleta/ejecuciones", Acceso.ATLETA, Atributo.DUENO),
+            // RF4 + RS04 + RS08: únicamente el rol ATLETA puede borrar su historial.
+            new Regla(DELETE, "/api/atleta/ejecuciones", Acceso.ATLETA, Atributo.DUENO),
+            new Regla(DELETE, "/api/atleta/ejecuciones/{idEjecucion}", Acceso.ATLETA,
+                    Atributo.DUENO),
             new Regla(GET, "/api/atleta/entrenadores", Acceso.ATLETA, Atributo.NINGUNO),
             new Regla(GET, "/api/atleta/solicitudes", Acceso.ATLETA, Atributo.DUENO),
             new Regla(POST, "/api/atleta/solicitudes", Acceso.ATLETA, Atributo.DUENO),
@@ -166,6 +172,10 @@ public class PoliticaAcceso {
                     Atributo.ASIGNADA_POR_MI),
             new Regla(POST, "/api/entrenador/atletas/{idAtleta}/rutinas", Acceso.ENTRENADOR,
                     Atributo.VINCULO_VIGENTE),
+            new Regla(PUT, "/api/entrenador/atletas/{idAtleta}/rutinas/{idRutina}",
+                    Acceso.ENTRENADOR, Atributo.ASIGNADA_POR_MI),
+            new Regla(DELETE, "/api/entrenador/atletas/{idAtleta}/rutinas/{idRutina}",
+                    Acceso.ENTRENADOR, Atributo.ASIGNADA_POR_MI),
             new Regla(GET, "/api/entrenador/atletas/{idAtleta}/ejecuciones", Acceso.ENTRENADOR,
                     Atributo.ASIGNADA_POR_MI),
 

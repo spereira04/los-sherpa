@@ -2,6 +2,7 @@ package com.lossherpa.web;
 
 import com.lossherpa.domain.Rutina;
 import com.lossherpa.domain.Usuario;
+import com.lossherpa.support.CapturadorDeAuditoria;
 import com.lossherpa.support.TestIntegracion;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -245,6 +246,92 @@ class EjecucionesTest extends TestIntegracion {
         mvc.perform(get("/api/atleta/ejecuciones").session(sesion))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("RF4: el atleta elimina su ejecución y deja de aparecer para él y su entrenador")
+    void eliminaSuEjecucion() throws Exception {
+        Rutina asignada = crearRutinaAsignadaConVinculo();
+        var ejecucion = crearEjecucion(asignada, HOY, 80);
+        MockHttpSession sesionAtleta = iniciarSesion("ana@test.com");
+        MockHttpSession sesionEntrenador = iniciarSesion("beto@test.com");
+
+        try (CapturadorDeAuditoria auditoria = new CapturadorDeAuditoria()) {
+            mvc.perform(delete("/api/atleta/ejecuciones/" + ejecucion.getId())
+                            .with(csrf()).session(sesionAtleta))
+                    .andExpect(status().isNoContent());
+
+            assertThat(auditoria.ultimaLinea())
+                    .contains("\"evento\":\"ejecucion_eliminada\"")
+                    .contains(ejecucion.getId().toString())
+                    .doesNotContain("80.0");
+        }
+
+        mvc.perform(get("/api/atleta/ejecuciones").session(sesionAtleta))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+        mvc.perform(get("/api/entrenador/atletas/" + atleta.getId() + "/ejecuciones")
+                        .session(sesionEntrenador))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("RS04: un atleta no puede eliminar una ejecución ajena")
+    void noEliminaEjecucionAjena() throws Exception {
+        Rutina ajena = crearRutinaPropia(otroAtleta, "Rutina de Caro");
+        var ejecucion = crearEjecucion(ajena, HOY, 45);
+        MockHttpSession sesion = iniciarSesion("ana@test.com");
+
+        try (CapturadorDeAuditoria auditoria = new CapturadorDeAuditoria()) {
+            mvc.perform(delete("/api/atleta/ejecuciones/" + ejecucion.getId())
+                            .with(csrf()).session(sesion))
+                    .andExpect(status().isNotFound());
+
+            assertThat(auditoria.ultimaLinea())
+                    .contains("\"evento\":\"acceso_denegado\"")
+                    .contains("\"estado\":404");
+        }
+
+        assertThat(ejecuciones.existsById(ejecucion.getId())).isTrue();
+    }
+
+    @Test
+    @DisplayName("RS08: el entrenador no puede borrar ejecuciones")
+    void entrenadorNoPuedeEliminarEjecucion() throws Exception {
+        Rutina asignada = crearRutinaAsignadaConVinculo();
+        var ejecucion = crearEjecucion(asignada, HOY, 80);
+        MockHttpSession sesion = iniciarSesion("beto@test.com");
+
+        try (CapturadorDeAuditoria auditoria = new CapturadorDeAuditoria()) {
+            mvc.perform(delete("/api/atleta/ejecuciones/" + ejecucion.getId())
+                            .with(csrf()).session(sesion))
+                    .andExpect(status().isForbidden());
+
+            assertThat(auditoria.ultimaLinea())
+                    .contains("\"evento\":\"acceso_denegado\"")
+                    .contains("\"estado\":403");
+        }
+
+        assertThat(ejecuciones.existsById(ejecucion.getId())).isTrue();
+    }
+
+    @Test
+    @DisplayName("RF4 + RS04: borrar todo solo elimina las ejecuciones del atleta autenticado")
+    void eliminaTodoSuHistorialSinAfectarAOtros() throws Exception {
+        Rutina propia = crearRutinaPropia(atleta, "Espalda");
+        Rutina ajena = crearRutinaPropia(otroAtleta, "Espalda de Caro");
+        crearEjecucion(propia, HOY, 30);
+        var ajenaEjecucion = crearEjecucion(ajena, HOY, 40);
+        MockHttpSession sesion = iniciarSesion("ana@test.com");
+
+        mvc.perform(delete("/api/atleta/ejecuciones").with(csrf()).session(sesion))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/atleta/ejecuciones").session(sesion))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+        assertThat(ejecuciones.existsById(ajenaEjecucion.getId())).isTrue();
     }
 
     // -------------------------------------------------- historial visto por el entrenador

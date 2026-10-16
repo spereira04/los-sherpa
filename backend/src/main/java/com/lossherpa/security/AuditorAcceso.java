@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * RS12 - Logs de autorizacion.
@@ -73,6 +74,22 @@ public class AuditorAcceso {
                 SanitizadorLog.limpiar(recursoDe(request)),
                 SanitizadorLog.limpiar(componente + ": "
                         + (causa == null ? "desconocida" : causa.getClass().getSimpleName())));
+    }
+    /** RF4 + RS12: el evento no incluye datos de la ejecución. */
+    public void ejecucionEliminada(UUID atletaId, UUID ejecucionId) {
+        LOG.info("{\"ts\":\"{}\",\"evento\":\"ejecucion_eliminada\","
+                        + "\"usuarioId\":\"{}\",\"ejecucionId\":\"{}\"}",
+                Instant.now(),
+                SanitizadorLog.limpiar(atletaId.toString()),
+                SanitizadorLog.limpiar(ejecucionId.toString()));
+    }
+
+    /** RF4 + RS12: registrar la limpieza del historial sin enumerar sus ejecuciones. */
+    public void historicoEjecucionesEliminado(UUID atletaId) {
+        LOG.info("{\"ts\":\"{}\",\"evento\":\"historico_ejecuciones_eliminado\","
+                        + "\"usuarioId\":\"{}\"}",
+                Instant.now(),
+                SanitizadorLog.limpiar(atletaId.toString()));
     }
 
     private String ipDe(HttpServletRequest request) {

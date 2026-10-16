@@ -217,4 +217,156 @@ class PerfilTest extends TestIntegracion {
                         .content(cuerpo(perfilAtleta())))
                 .andExpect(status().isForbidden());
     }
+
+    // --- RF7: tema ---
+
+    private void guardarTema(MockHttpSession sesion, String tema, int estado) throws Exception {
+        mvc.perform(put("/api/perfil/preferencias").with(csrf()).session(sesion)
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(Map.of("tema", tema))))
+                .andExpect(status().is(estado));
+    }
+
+    @Test
+    @DisplayName("RF7: el tema por defecto es SISTEMA")
+    void temaPorDefecto() throws Exception {
+        MockHttpSession sesion = iniciarSesion("ana@test.com");
+        mvc.perform(get("/api/perfil").session(sesion))
+                .andExpect(jsonPath("$.tema").value("SISTEMA"));
+    }
+
+    @Test
+    @DisplayName("RF7: el tema guardado se devuelve en el perfil y en la sesion")
+    void guardaElTema() throws Exception {
+        MockHttpSession sesion = iniciarSesion("ana@test.com");
+        guardarTema(sesion, "OSCURO", 200);
+
+        mvc.perform(get("/api/perfil").session(sesion))
+                .andExpect(jsonPath("$.tema").value("OSCURO"));
+        mvc.perform(get("/api/auth/yo").session(sesion))
+                .andExpect(jsonPath("$.tema").value("OSCURO"));
+        // Persiste entre sesiones.
+        mvc.perform(get("/api/auth/yo").session(iniciarSesion("ana@test.com")))
+                .andExpect(jsonPath("$.tema").value("OSCURO"));
+    }
+
+    @Test
+    @DisplayName("RF7: el admin tambien puede elegir tema")
+    void adminElijeTema() throws Exception {
+        crearAdmin("admin@test.com");
+        guardarTema(iniciarSesion("admin@test.com"), "CLARO", 200);
+    }
+
+    @Test
+    @DisplayName("RF7: un tema invalido se rechaza")
+    void temaInvalido() throws Exception {
+        guardarTema(iniciarSesion("ana@test.com"), "ROJO", 400);
+    }
+
+    @Test
+    @DisplayName("RF7: las preferencias no aceptan campos extra (rol, email, telefono)")
+    void preferenciasConCamposExtra() throws Exception {
+        MockHttpSession sesion = iniciarSesion("ana@test.com");
+        for (String campo : new String[] {"rol", "email", "telefono"}) {
+            Map<String, Object> datos = new HashMap<>();
+            datos.put("tema", "OSCURO");
+            datos.put(campo, "ADMIN");
+            mvc.perform(put("/api/perfil/preferencias").with(csrf()).session(sesion)
+                            .contentType(APPLICATION_JSON)
+                            .content(cuerpo(datos)))
+                    .andExpect(status().isBadRequest());
+        }
+        assertThat(usuarios.findByEmailIgnoreCase("ana@test.com").orElseThrow().getTema())
+                .isEqualTo(com.lossherpa.domain.Tema.SISTEMA);
+    }
+
+    @Test
+    @DisplayName("RF7: las preferencias exigen sesion y CSRF")
+    void preferenciasExigenSesionYCsrf() throws Exception {
+        mvc.perform(put("/api/perfil/preferencias").with(csrf())
+                        .contentType(APPLICATION_JSON).content("{\"tema\":\"OSCURO\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(put("/api/perfil/preferencias").session(iniciarSesion("ana@test.com"))
+                        .contentType(APPLICATION_JSON).content("{\"tema\":\"OSCURO\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    // --- RF7: telefono ---
+
+    private void guardarTelefono(MockHttpSession sesion, Map<String, Object> datos, String tel,
+                                 int estado) throws Exception {
+        datos.put("telefono", tel);
+        mvc.perform(put("/api/perfil").with(csrf()).session(sesion)
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(datos)))
+                .andExpect(status().is(estado));
+    }
+
+    @Test
+    @DisplayName("RF7: el telefono se guarda, se lee y se borra")
+    void telefonoGuardarLeerBorrar() throws Exception {
+        MockHttpSession sesion = iniciarSesion("ana@test.com");
+
+        guardarTelefono(sesion, perfilAtleta(), "+54 9 11 5555-1234", 200);
+        mvc.perform(get("/api/perfil").session(sesion))
+                .andExpect(jsonPath("$.telefono").value("+54 9 11 5555-1234"));
+
+        guardarTelefono(sesion, perfilAtleta(), null, 200);
+        mvc.perform(get("/api/perfil").session(sesion))
+                .andExpect(jsonPath("$.telefono").doesNotExist());
+        assertThat(usuarios.findByEmailIgnoreCase("ana@test.com").orElseThrow().getTelefono())
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("RF7: un telefono con formato invalido se rechaza")
+    void telefonoInvalido() throws Exception {
+        MockHttpSession sesion = iniciarSesion("ana@test.com");
+        guardarTelefono(sesion, perfilAtleta(), "<script>alert(1)</script>", 400);
+        guardarTelefono(sesion, perfilAtleta(), "abc", 400);
+        guardarTelefono(sesion, perfilAtleta(), "1".repeat(31), 400);
+    }
+
+    @Test
+    @DisplayName("RF7/RS06: el telefono lo ven las dos puntas del vinculo vigente y nadie mas")
+    void visibilidadDelTelefono() throws Exception {
+        var ana = usuarios.findByEmailIgnoreCase("ana@test.com").orElseThrow();
+        var beto = usuarios.findByEmailIgnoreCase("beto@test.com").orElseThrow();
+        ana.setTelefono("+5491155551111");
+        beto.setTelefono("+5491155552222");
+        usuarios.save(ana);
+        usuarios.save(beto);
+        var otro = crearEntrenador("otro@test.com", "Otro", "Coach");
+
+        // Sin vinculo: ni la busqueda ni el detalle lo devuelven.
+        MockHttpSession sesionAna = iniciarSesion("ana@test.com");
+        String busqueda = mvc.perform(get("/api/atleta/entrenadores").session(sesionAna))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(busqueda).doesNotContain("telefono", "5555");
+        mvc.perform(get("/api/entrenador/atletas/" + ana.getId())
+                        .session(iniciarSesion("otro@test.com")))
+                .andExpect(status().isNotFound());
+
+        // Solicitud pendiente: tampoco.
+        crearSolicitudPendiente(ana, otro);
+        String pendientes = mvc.perform(get("/api/entrenador/solicitudes")
+                        .session(iniciarSesion("otro@test.com")))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(pendientes).doesNotContain("telefono", "5555");
+
+        // Con vinculo vigente: cada uno ve el del otro.
+        crearVinculoActivo(beto, ana);
+        mvc.perform(get("/api/entrenador/atletas/" + ana.getId())
+                        .session(iniciarSesion("beto@test.com")))
+                .andExpect(jsonPath("$.telefono").value("+5491155551111"));
+        mvc.perform(get("/api/entrenador/atletas").session(iniciarSesion("beto@test.com")))
+                .andExpect(jsonPath("$[0].atleta.telefono").value("+5491155551111"));
+        mvc.perform(get("/api/atleta/entrenador").session(sesionAna))
+                .andExpect(jsonPath("$.entrenador.telefono").value("+5491155552222"));
+
+        // El entrenador sin vinculo sigue sin verlo.
+        mvc.perform(get("/api/entrenador/atletas/" + ana.getId())
+                        .session(iniciarSesion("otro@test.com")))
+                .andExpect(status().isNotFound());
+    }
 }

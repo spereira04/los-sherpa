@@ -1,18 +1,39 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Aviso, Campo } from './ui'
 
-export type EjercicioNuevo = { nombre: string; series: number; repeticiones: number }
+export type EjercicioNuevo = {
+  nombre: string
+  series: number
+  repeticiones: number
+  observaciones?: string
+}
 
-/** Formulario de alta de rutina. Lo usan el atleta (rutina propia) y el entrenador. */
-export function FormularioRutina({ onGuardar, enviando, error }: {
+export function FormularioRutina({
+  onGuardar,
+  enviando,
+  error,
+  valorInicial,
+  textoBoton = 'Crear rutina',
+}: {
   onGuardar: (nombre: string, ejercicios: EjercicioNuevo[]) => void
   enviando: boolean
   error: string | null
+  valorInicial?: { nombre: string; ejercicios: EjercicioNuevo[] }
+  textoBoton?: string
 }) {
-  const [nombre, setNombre] = useState('')
-  const [ejercicios, setEjercicios] = useState<EjercicioNuevo[]>([
-    { nombre: '', series: 3, repeticiones: 10 },
-  ])
+  const [nombre, setNombre] = useState(valorInicial?.nombre ?? '')
+  const [ejercicios, setEjercicios] = useState<EjercicioNuevo[]>(
+    valorInicial?.ejercicios.length
+      ? valorInicial.ejercicios
+      : [{ nombre: '', series: 3, repeticiones: 10, observaciones: '' }],
+  )
+
+  useEffect(() => {
+    if (valorInicial) {
+      setNombre(valorInicial.nombre)
+      setEjercicios(valorInicial.ejercicios)
+    }
+  }, [valorInicial])
 
   function cambiar(indice: number, cambios: Partial<EjercicioNuevo>) {
     setEjercicios((previos) =>
@@ -49,6 +70,10 @@ export function FormularioRutina({ onGuardar, enviando, error }: {
             <input type="number" min={1} max={500} value={ejercicio.repeticiones} required
                    onChange={(e) => cambiar(indice, { repeticiones: Number(e.target.value) })} />
           </Campo>
+          <Campo etiqueta="Observaciones técnicas">
+            <textarea value={ejercicio.observaciones ?? ''} maxLength={500}
+                      onChange={(e) => cambiar(indice, { observaciones: e.target.value })} />
+          </Campo>
           {ejercicios.length > 1 && (
             <button type="button" className="peligro"
                     onClick={() => setEjercicios((p) => p.filter((_, i) => i !== indice))}>
@@ -64,16 +89,18 @@ export function FormularioRutina({ onGuardar, enviando, error }: {
           className="secundario"
           disabled={ejercicios.length >= 30}
           onClick={() =>
-            setEjercicios((p) => [...p, { nombre: '', series: 3, repeticiones: 10 }])
+            setEjercicios((p) => [...p, { nombre: '', series: 3, repeticiones: 10, observaciones: '' }])
           }
         >
           Agregar ejercicio
         </button>
         <button type="submit" disabled={enviando}>
-          {enviando ? 'Guardando...' : 'Crear rutina'}
+          {enviando ? 'Guardando...' : textoBoton}
         </button>
       </div>
-      <p className="ayuda">Las rutinas no se pueden editar despues de crearlas.</p>
+      <p className="ayuda">
+        Las observaciones técnicas quedan visibles para el atleta y se guardan junto con cada ejercicio.
+      </p>
     </form>
   )
 }

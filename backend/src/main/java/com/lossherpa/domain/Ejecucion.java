@@ -22,7 +22,7 @@ import java.util.UUID;
 
 /**
  * Una rutina se puede completar muchas veces: cada ejecucion es una entrada del historial.
- * No se edita ni se borra.
+ * RF4: el atleta puede eliminar sus propias ejecuciones, pero no editarlas.
  */
 @Entity
 @Table(name = "ejecuciones")

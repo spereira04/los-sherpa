@@ -7,7 +7,10 @@ import com.lossherpa.security.UsuarioActual;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.sqlite.SQLiteErrorCode;
+import org.sqlite.SQLiteException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -76,8 +79,31 @@ public class ManejadorGlobalErrores {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> integridad(DataIntegrityViolationException ex) {
         LOG.warn("Violacion de integridad en la base de datos", ex);
-        return respuesta(HttpStatus.CONFLICT,
-                "La operacion choca con un dato que ya existe");
+        return conflictoDeIntegridad();
+    }
+
+    /**
+     * Con el dialecto de SQLite, Spring no traduce las violaciones de constraint a
+     * DataIntegrityViolationException: llegan como JpaSystemException. Las de tipo constraint
+     * (indices unicos de vinculacion, email) son 409; cualquier otra sigue siendo 500.
+     */
+    @ExceptionHandler(JpaSystemException.class)
+    public ResponseEntity<Map<String, Object>> sistemaJpa(JpaSystemException ex) {
+        for (Throwable t = ex; t != null; t = t.getCause()) {
+            if (t instanceof SQLiteException sqlite
+                    && (sqlite.getResultCode().code & 0xFF) == SQLiteErrorCode.SQLITE_CONSTRAINT.code) {
+                LOG.warn("Violacion de integridad en la base de datos", ex);
+                return conflictoDeIntegridad();
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return inesperado(ex);
+    }
+
+    private ResponseEntity<Map<String, Object>> conflictoDeIntegridad() {
+        return respuesta(HttpStatus.CONFLICT, "La operacion choca con un dato que ya existe");
     }
 
     @ExceptionHandler(ConflictoException.class)
