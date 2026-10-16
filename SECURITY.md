@@ -6,7 +6,7 @@ lo cubren. En el código, cada punto está marcado con un comentario (`// RS04`,
 Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las de tests a
 `backend/src/test/java/com/lossherpa/`.
 
-**Estado de la suite: 173 tests, todos en verde** (`cd backend && ./mvnw test`).
+**Estado de la suite: 181 tests, todos en verde** (`cd backend && ./mvnw test`).
 
 ---
 
@@ -14,14 +14,157 @@ Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las
 
 | RS | Requisito | Estado |
 |---|---|---|
+| RS01 | Control de acceso centralizado (PEP) | ✅ |
+| RS03 | Modelo híbrido RBAC + ABAC | ✅ |
 | RS04 | Control de acceso a nivel de dato (ASVS 8.2.2) | ✅ |
+| RS05 | Controles solo en el servidor | ✅ |
 | RS07 | No exposición de IDs | ✅ |
+| RS08 | ⚠️ Control por rol en el servidor (definición del Informe v1, a confirmar) | ✅ |
 | RS10 | Impacto inmediato de cambios de autorización (ASVS 8.3.2) | ✅ |
 | RS12 | Logs de autorización | ✅ |
 | RS13 | Deny by default, incluidos los estáticos | ✅ |
 | RS14 | Sin configuración por defecto | ✅ |
 | RS15 | Tests unitarios y de integración | ✅ |
 | RS17 | Protección de logs | ✅ |
+
+---
+
+## Política de autorización
+
+**Fuente de verdad: `security/PoliticaAcceso.java`.** Esta tabla es la misma lista, una fila
+por endpoint (método + patrón exacto). Lo que no está acá se deniega
+(`anyRequest().denyAll()`, RS13).
+
+| Método | Path | Rol | Atributo (ABAC) | Denegación |
+|---|---|---|---|---|
+| GET | `/api/csrf` | público | — | — |
+| POST | `/api/auth/login` | público | — | — |
+| POST | `/api/auth/registro` | público | — | — |
+| GET | `/api/auth/yo` | autenticado (cualquier rol) | propio | 401 sin sesión |
+| GET | `/api/perfil` | autenticado (cualquier rol) | propio | 401 sin sesión |
+| PUT | `/api/perfil` | autenticado (cualquier rol) | propio | 401 sin sesión |
+| GET | `/api/atleta/rutinas` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
+| GET | `/api/atleta/rutinas/{idRutina}` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
+| POST | `/api/atleta/rutinas` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
+| POST | `/api/atleta/rutinas/{idRutina}/ejecuciones` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
+| GET | `/api/atleta/ejecuciones` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
+| GET | `/api/atleta/entrenadores` | ATLETA | — | 401 sin sesión · 403 otro rol |
+| GET | `/api/atleta/solicitudes` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
+| POST | `/api/atleta/solicitudes` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
+| POST | `/api/atleta/solicitudes/{idSolicitud}/cancelar` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
+| GET | `/api/atleta/entrenador` | ATLETA | vínculo vigente | 401 sin sesión · 403 otro rol · 404 sin relación |
+| DELETE | `/api/atleta/vinculo` | ATLETA | vínculo vigente | 401 sin sesión · 403 otro rol · 404 sin relación |
+| GET | `/api/entrenador/atletas` | ENTRENADOR | vínculo vigente | 401 sin sesión · 403 otro rol · 404 sin relación |
+| GET | `/api/entrenador/exatletas` | ENTRENADOR | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
+| GET | `/api/entrenador/solicitudes` | ENTRENADOR | destinatario | 401 sin sesión · 403 otro rol · 404 sin relación |
+| POST | `/api/entrenador/solicitudes/{idSolicitud}/aceptar` | ENTRENADOR | destinatario | 401 sin sesión · 403 otro rol · 404 sin relación |
+| POST | `/api/entrenador/solicitudes/{idSolicitud}/rechazar` | ENTRENADOR | destinatario | 401 sin sesión · 403 otro rol · 404 sin relación |
+| GET | `/api/entrenador/atletas/{idAtleta}` | ENTRENADOR | vínculo vigente | 401 sin sesión · 403 otro rol · 404 sin relación |
+| DELETE | `/api/entrenador/atletas/{idAtleta}/vinculo` | ENTRENADOR | vínculo vigente | 401 sin sesión · 403 otro rol · 404 sin relación |
+| GET | `/api/entrenador/atletas/{idAtleta}/rutinas` | ENTRENADOR | vínculo vigente + asignada por mí | 401 sin sesión · 403 otro rol · 404 sin relación |
+| POST | `/api/entrenador/atletas/{idAtleta}/rutinas` | ENTRENADOR | vínculo vigente | 401 sin sesión · 403 otro rol · 404 sin relación |
+| GET | `/api/entrenador/atletas/{idAtleta}/ejecuciones` | ENTRENADOR | vínculo vigente + asignada por mí | 401 sin sesión · 403 otro rol · 404 sin relación |
+| GET | `/api/admin/usuarios` | ADMIN | gestionable (no ADMIN) | 401 sin sesión · 403 otro rol · 404 sin relación |
+| POST | `/api/admin/usuarios` | ADMIN | — | 401 sin sesión · 403 otro rol |
+| GET | `/api/admin/usuarios/{idUsuario}` | ADMIN | gestionable (no ADMIN) | 401 sin sesión · 403 otro rol · 404 sin relación |
+| PUT | `/api/admin/usuarios/{idUsuario}` | ADMIN | gestionable (no ADMIN) | 401 sin sesión · 403 otro rol · 404 sin relación |
+| DELETE | `/api/admin/usuarios/{idUsuario}` | ADMIN | gestionable (no ADMIN) | 401 sin sesión · 403 otro rol · 404 sin relación |
+| GET | `/`, `/index.html`, `/login`, `/registro`, `/entrenador`, `/entrenador/**`, `/atleta`, `/atleta/**`, `/admin`, `/admin/**`, `/assets/**`, `/favicon.ico` | público | — | — |
+| todos | `/error` | nadie | — | 403 siempre |
+
+Cómo leer "Denegación": **401** sin sesión (`PuntoEntradaNoAutenticado`), **403** rol
+equivocado (`ManejadorAccesoDenegado`), **404** si no se cumple el atributo de relación (lo
+aplica la consulta, ver RS04). Las tres respuestas quedan en el log de auditoría (RS12).
+
+`POST /api/auth/logout` no figura: lo atiende el `LogoutFilter` de Spring Security antes de
+la autorización y no llega a ningún handler ni servicio. Exige CSRF y sin sesión responde
+204 igual (es idempotente).
+
+---
+
+## RS01 — Control de acceso centralizado (Policy Enforcement Point)
+
+**Cómo está implementado.** Hay **un punto de decisión** y **dos puntos de aplicación**:
+
+- **PDP: `security/PoliticaAcceso`.** Declara la tabla de arriba y decide con
+  `exigir(regla, autenticacion)`: deja pasar, lanza `AuthenticationCredentialsNotFoundException`
+  (401) o `AccesoDenegadoPorPolitica` (403, con el motivo para la auditoría).
+- **PEP 1, filtro por URL.** `SecurityConfig` recorre la política y registra cada regla con
+  su método y su patrón en `authorizeHttpRequests`, delegando la decisión en la política.
+  La configuración no tiene ningún `hasRole` escrito a mano.
+- **PEP 2, interceptor de MVC.** `InterceptorPoliticaAcceso` vuelve a consultar la política
+  sobre el **patrón del handler que eligió MVC** (`BEST_MATCHING_PATTERN_ATTRIBUTE`), no sobre
+  la URL. Si la regla de URL se borra o se abre por error, o si la URL y el handler no
+  coinciden, la request igual se deniega antes del controlador. Un handler sin regla se
+  deniega (fail closed).
+
+Además, cada servicio sigue llamando a `ServicioUsuarios.autenticadoConRol(...)` como
+tercera barrera.
+
+| Dónde | Qué hace |
+|---|---|
+| `security/PoliticaAcceso.java` | Tabla de reglas (método + patrón + rol + atributo) y la decisión `exigir(...)` |
+| `config/SecurityConfig.java` | Registra cada regla de la política en el filtro; termina en `denyAll()` (RS13) |
+| `security/InterceptorPoliticaAcceso.java` | Segunda decisión sobre el handler elegido por MVC |
+| `config/ConfiguracionPoliticaAcceso.java` | Registra el interceptor para todos los handlers (controladores, estáticos, `/error`) |
+| `security/AccesoDenegadoPorPolitica.java` | 403 con el motivo real para el log |
+| `security/ManejadorAccesoDenegado.java`, `error/ManejadorGlobalErrores.java` | Auditan el motivo que dio la política (filtro y MVC respectivamente) |
+
+**Decisión: `AuthorizationManager` con política declarada (opción a), no `@PreAuthorize`.**
+Con `@PreAuthorize` el rol de cada operación quedaría repartido entre anotaciones en cada
+controlador y las reglas de URL. Con la tabla, el rol se escribe **una sola vez**, los dos
+PEP leen lo mismo y un test puede recorrerla directamente. La segunda capa decide sobre el
+handler y no sobre la URL, que es justamente lo que una regla de URL mal escrita no ve.
+
+**Decisión: la política lanza su propia excepción.** En Spring Security 6.3 el
+`AuthorizationFilter` descarta la decisión y lanza un `AccessDeniedException("Access Denied")`
+genérico: el motivo se perdería. `AccesoDenegadoPorPolitica` lo lleva hasta el log; al
+cliente le llega siempre el mismo 403 genérico.
+
+**Decisión: `autenticadoConRol` se mantiene.** No decide política (eso es la tabla): verifica
+un invariante del servicio ("las operaciones de atleta operan sobre un atleta"). Si alguna
+vez falla es un bug de la configuración, y responde 403 auditado igual.
+
+**Tests**
+
+| Caso | Test |
+|---|---|
+| Sin sesión, todo endpoint de rol → 401 | `security/PoliticaAccesoTest.sinSesionEs401` |
+| Rol fuera de su grupo → 403 con una línea de auditoría por intento | `security/PoliticaAccesoTest.rolEquivocadoEs403YSeAudita` |
+| El rol correcto entra | `security/PoliticaAccesoTest.elRolCorrectoEntra` |
+| La política no tiene reglas duplicadas | `security/PoliticaAccesoTest.laPoliticaNoTieneReglasDuplicadas` |
+| Sin la regla de URL de admin, el atleta igual recibe 403 de la segunda capa | `security/DefensaEnProfundidadTest.sinReglaDeUrlElAtletaIgualEsDenegado` |
+| Sin la regla de URL, sin sesión → 401 de la segunda capa | `security/DefensaEnProfundidadTest.sinReglaDeUrlSinSesionEs401` |
+| La segunda capa no le quita acceso al rol correcto | `security/DefensaEnProfundidadTest.elAdminSigueEntrando` |
+
+---
+
+## RS03 — Modelo híbrido RBAC + ABAC
+
+**Cómo está implementado.** Dos capas, en lugares distintos a propósito:
+
+1. **RBAC en la política.** El rol de cada endpoint es la columna "Rol" de la tabla. Lo
+   aplican los dos PEP de RS01.
+2. **ABAC en la consulta.** La columna "Atributo" nombra el predicado de relación de cada
+   endpoint. Los predicados están definidos **en un solo lugar** (el enum
+   `PoliticaAcceso.Atributo`, que documenta qué consulta implementa cada uno), pero se siguen
+   aplicando **dentro del `where`** del repositorio: no se pasó a "buscar y después chequear".
+   Si no se cumplen, la consulta no devuelve filas y la respuesta es 404 (RS04).
+
+| Atributo | Predicado | Dónde se aplica |
+|---|---|---|
+| `PROPIO` | el recurso es el usuario de la sesión | `UsuarioActual.id()` en `ServicioUsuarios`, `ServicioPerfil`, `ServicioAutenticacion` |
+| `DUENO` | `atleta.id = :yo` (o `entrenador.id = :yo` en sus vínculos finalizados) | `RutinaRepository.buscarDeAtleta`, `listarPorAtleta`; `EjecucionRepository.listarPorAtleta`; `SolicitudVinculacionRepository.buscarDeAtleta`; `VinculoRepository.listarFinalizadosPorEntrenador` |
+| `DESTINATARIO` | la solicitud está dirigida al entrenador de la sesión | `SolicitudVinculacionRepository.buscarDeEntrenador` |
+| `VINCULO_VIGENTE` | vínculo entrenador↔atleta con `fechaFin is null` | `VinculoRepository.buscarActivoPorEntrenadorYAtleta`, `ServicioVinculacion.vinculoActivoCon` |
+| `ASIGNADA_POR_MI` | vínculo vigente + `origen = ASIGNADA` + `entrenadorCreador = :yo` | `RutinaRepository.listarAsignadasPorEntrenador`, `EjecucionRepository.listarAsignadasPorEntrenador` |
+| `GESTIONABLE` | el usuario no es ADMIN | `UsuarioRepository.buscarGestionablePorAdmin`, `buscarParaAdmin` |
+
+**Tests.** RBAC: `security/PoliticaAccesoTest`.
+ABAC (reutilizados, no duplicados): `web/VinculacionTest.noVeAtletaAjeno`,
+`noVeAtletaSinVinculo`, `elAtletaDesvinculaYElEntrenadorPierdeAcceso`;
+`web/RutinasTest.noVeRutinasDeAtletaAjeno`, `alDesvincularPierdeAccesoALasRutinas`;
+`web/EjecucionesTest.noVeHistorialDeAtletaAjeno`, `alDesvincularPierdeAccesoAlHistorial`.
 
 ---
 
@@ -112,6 +255,43 @@ intentar pedir otro recurso de ese exatleta.
 
 ---
 
+## RS05 — Controles solo en el servidor
+
+**Cómo está implementado.** Ningún control confía en el cliente:
+
+- El rol con el que decide la política sale del principal que `FiltroSesionVigente`
+  reconstruye **desde la base** en cada request, nunca de un parámetro, una cabecera ni de
+  lo que el frontend cree que es el usuario.
+- Ningún handler recibe el rol, el id del usuario actual ni un flag del tipo `esAdmin`. Lo
+  verifica un test por reflexión sobre los handlers reales.
+- El frontend solo adapta la experiencia (ver "El frontend no es un control de seguridad").
+
+Excepción justificada, declarada en el test: el parámetro `rol` de `GET /api/admin/usuarios`
+filtra a **otros** usuarios; el rol y la identidad del admin salen igual de la sesión.
+
+**Tests**
+
+| Caso | Test |
+|---|---|
+| Ningún parámetro se llama `rol`, `esAdmin`, `idUsuarioActual`, … | `security/PoliticaAccesoTest.ningunHandlerRecibeRolNiIdentidad` |
+
+---
+
+## RS08 — ⚠️ Definición a confirmar con el equipo
+
+**Definición aplicada: la del Informe v1**, que agrupa RS01, RS03, RS05 y RS08 bajo
+"control de acceso por rol en el servidor" (amenaza A2). Con esa definición, RS08 queda
+cubierto por la política central (RS01), el modelo RBAC + ABAC (RS03) y los controles solo
+en el servidor (RS05). En el código se marca junto con ellos en `PoliticaAcceso`.
+
+**Definición alternativa** ("Corrección Requerimientos", numeración vieja): control de
+acceso **basado en estado**, por ejemplo rechazar con 409 cualquier cambio sobre una sesión
+de entrenamiento que ya no está "en curso". **No está implementada**: hoy `Ejecucion` se crea
+finalizada en un solo POST y no tiene estado. Si el equipo confirma esta definición, se
+implementa junto con SH-38 (RF4), que es el que introduce el ciclo de vida de la ejecución.
+
+---
+
 ## RS10 — Impacto inmediato de cambios de autorización (ASVS v5 8.3.2)
 
 **Cómo está implementado.** Dos mecanismos independientes, ninguno de los cuales cachea
@@ -167,7 +347,8 @@ con `ts`, `evento`, `estado`, `usuarioId` (o `anonimo`), `ip`, `metodo`, `recurs
 
 Tres eventos: `acceso_denegado`, `login_fallido` y `sesion_invalidada`. Se registran los 401
 del entry point, los 403 del access denied handler y los 404 por recurso ajeno del handler
-global.
+global. El `motivo` de un 403 es el que dio la política (`el endpoint exige el rol ATLETA`,
+`token CSRF invalido o ausente`).
 
 **Nunca se loguean** contraseñas, cookies, tokens, cabeceras ni cuerpos de request. Del
 request solo salen el método y el path, sin query string. El email del admin tampoco se
@@ -177,7 +358,7 @@ registra al crearlo.
 |---|---|
 | `security/AuditorAcceso.java` | `denegado(...)`, `loginFallido(...)`, `sesionInvalidada(...)` |
 | `security/PuntoEntradaNoAutenticado.java` | 401 sin sesión |
-| `security/ManejadorAccesoDenegado.java` | 403 fuera de rol o CSRF inválido |
+| `security/ManejadorAccesoDenegado.java` | 403 fuera de rol o CSRF inválido, con el motivo de la política |
 | `error/ManejadorGlobalErrores.java` | `noEncontrado(...)`: registra el 404 por recurso ajeno |
 | `security/FiltroSesionVigente.java` | registra la sesión invalidada |
 | `resources/logback-spring.xml` | logger `AUDITORIA` → `logs/auditoria.log`, patrón `%msg%n` |
@@ -199,12 +380,12 @@ y auditable en el código, al lado del saneado.
 ## RS13 — Deny by default, incluidos los recursos estáticos
 
 **Cómo está implementado.** La cadena de autorización termina en **`anyRequest().denyAll()`**,
-no en `authenticated()`. Todo lo que se sirve está enumerado:
+no en `authenticated()`. Todo lo que se sirve está
+enumerado en `PoliticaAcceso` (ver "Política de autorización"):
 
 - **Lista blanca pública**: `GET /api/csrf`, `POST /api/auth/login`, `POST /api/auth/registro`.
-- **API por rol**: `/api/admin/**` → `ADMIN`, `/api/entrenador/**` → `ENTRENADOR`,
-  `/api/atleta/**` → `ATLETA`, `/api/perfil` y `/api/auth/yo` → autenticado.
-- **Estáticos**: solo los archivos del build del frontend.
+- **API por rol**: una regla por endpoint, con método y patrón exactos (RS01).
+- **Estáticos**: solo los archivos del build del frontend, solo con `GET`.
 
 Para los estáticos se tomaron tres medidas:
 
@@ -221,7 +402,8 @@ o cuyo path termine en `/`. El test `EstaticosTest.noHayListadoDeDirectorios` fi
 
 | Dónde | Qué hace |
 |---|---|
-| `config/SecurityConfig.java` | `authorizeHttpRequests(...)` terminando en `denyAll()`, constante `RUTAS_SPA` |
+| `security/PoliticaAcceso.java` | Rutas del SPA y estáticos, solo `GET` |
+| `config/SecurityConfig.java` | `authorizeHttpRequests(...)` desde la política, terminando en `denyAll()` |
 | `config/ConfiguracionRecursosEstaticos.java` | Declara los patrones servibles y rechaza directorios |
 | `config/ControladorSpa.java` | Entrega `index.html` solo para las rutas conocidas del SPA |
 | `resources/application.yml` | `spring.web.resources.add-mappings: false` |
@@ -304,12 +486,14 @@ al servir por HTTPS.
 
 ## RS15 — Tests unitarios y de integración
 
-**173 tests** con JUnit 5, Spring Boot Test y MockMvc, concentrados en la lógica de negocio y
+**181 tests** con JUnit 5, Spring Boot Test y MockMvc, concentrados en la lógica de negocio y
 sobre todo en los controles de seguridad.
 
 | Clase | Tests | Qué cubre |
 |---|---|---|
 | `web/VinculacionTest` | 29 | solicitudes, vínculos, IDOR, roles, RS10 |
+| `security/PoliticaAccesoTest` | 5 | RS01, RS03, RS05: matriz por grupo de rol, auditoría, identidad |
+| `security/DefensaEnProfundidadTest` | 3 | RS01: segunda capa sin la regla de URL |
 | `web/AdminTest` | 20 | panel de admin, no crear admins, RS10 al eliminar |
 | `web/EjecucionesTest` | 18 | ejecuciones, validación de series, visibilidad |
 | `web/RutinasTest` | 16 | rutinas, IDOR, rutinas propias invisibles al entrenador |
@@ -325,8 +509,10 @@ sobre todo en los controles de seguridad.
 | `ContextoCargaTest` | 2 | arranque, ausencia de admin por defecto |
 
 Infraestructura: `support/TestIntegracion.java` (base común, limpia la base en un
-`@BeforeEach` para que ningún test dependa del orden) y
-`support/CapturadorDeAuditoria.java` (appender en memoria sobre el logger `AUDITORIA`).
+`@BeforeEach` para que ningún test dependa del orden),
+`support/CapturadorDeAuditoria.java` (appender en memoria sobre el logger `AUDITORIA`) y
+`support/InspectorDeEndpoints.java` (lista los endpoints reales de todos los
+`HandlerMapping`).
 
 **Cobertura de la lista de casos obligatorios del enunciado**
 
