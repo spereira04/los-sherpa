@@ -13,7 +13,7 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 
 /**
- * Lista blanca de lo editable del perfil.
+ * RS06: lista blanca de lo editable del perfil (escritura a nivel de campo).
  *
  * No incluye email (inmutable), rol (inmutable), id, contrasena ni ningun campo de
  * autorizacion. Como ademas el mapper de Jackson rechaza propiedades desconocidas

@@ -40,11 +40,12 @@ export type SolicitudEnviada = {
   entrenador: PerfilPublico
 }
 
+// Antes del vinculo el entrenador solo ve nombre, apellido y edad del solicitante.
 export type SolicitudRecibida = {
   id: string
   estado: EstadoSolicitud
   creadaEn: string
-  atleta: PerfilPublico
+  atleta: { nombre: string; apellido: string; edad: number }
 }
 
 export type Vinculo = {
