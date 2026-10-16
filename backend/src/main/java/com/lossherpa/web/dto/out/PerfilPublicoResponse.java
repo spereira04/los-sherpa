@@ -9,6 +9,9 @@ import java.util.UUID;
 /**
  * Perfil que un usuario puede ver de otro.
  *
+ * RS06: es la vista de un usuario sobre OTRO con relacion vigente (atleta -> entrenador,
+ * entrenador -> atleta vinculado). Los campos salen de la matriz de SECURITY.md; un campo
+ * nuevo aca hace fallar web/CamposPorRolTest.
  * RS07: no incluye email, ni fecha de nacimiento, ni rol, ni hash. La edad va calculada.
  * Hay una fabrica por rol para que cada una exponga solo los campos de ese rol: asi no se
  * puede filtrar el peso de un atleta en el perfil de un entrenador ni al revés.

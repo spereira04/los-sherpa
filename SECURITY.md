@@ -6,7 +6,7 @@ lo cubren. En el código, cada punto está marcado con un comentario (`// RS04`,
 Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las de tests a
 `backend/src/test/java/com/lossherpa/`.
 
-**Estado de la suite: 198 tests, todos en verde** (`cd backend && ./mvnw test`).
+**Estado de la suite: 201 tests, todos en verde** (`cd backend && ./mvnw test`).
 
 ---
 
@@ -18,6 +18,7 @@ Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las
 | RS03 | Modelo híbrido RBAC + ABAC | ✅ |
 | RS04 | Control de acceso a nivel de dato (ASVS 8.2.2) | ✅ |
 | RS05 | Controles solo en el servidor | ✅ |
+| RS06 | Control de acceso a nivel de campo / mass assignment (ASVS 8.2.3) | ✅ |
 | RS07 | No exposición de IDs | ✅ |
 | RS08 | Control por rol en el servidor (definición aplicada del Informe v1) | ✅ |
 | RS10 | Impacto inmediato de cambios de autorización (ASVS 8.3.2) | ✅ |
@@ -303,7 +304,179 @@ filtra a **otros** usuarios; el rol y la identidad del admin salen igual de la s
 
 ---
 
-## RS08 — Definición aplicada
+## RS06 — Control de acceso a nivel de campo (ASVS v5 8.2.3)
+
+**Qué cubre.** Dos lados de BOPLA (Broken Object Property Level Authorization):
+
+- **Escritura (CWE-915, mass assignment).** Un usuario no puede modificar campos que no le
+  corresponden (rol, email, dueño, origen de una rutina, campos de otro rol), ni siquiera
+  agregándolos al JSON.
+- **Lectura (CWE-213, exposición excesiva).** Cada respuesta incluye **solo los campos que
+  ese consumidor puede ver**.
+
+### Cómo está implementado
+
+**Escritura**, en capas:
+
+1. **DTOs de entrada con lista blanca de campos** (`web/dto/in/`). Son records que solo
+   declaran lo editable. `RegistroRequest` y `CrearUsuarioAdminRequest` usan el enum
+   **`RolRegistro`, que no incluye `ADMIN`**: un body con `"rol":"ADMIN"` falla al
+   deserializar y devuelve 400 sin llegar al servicio. Es más fuerte que validar y rechazar,
+   porque el valor no es ni representable.
+2. **Jackson en modo estricto** (`fail-on-unknown-properties: true`): un body con un campo
+   que el DTO no declara (`id`, `passwordHash`, `origen`, `idAtleta`) devuelve 400 en lugar
+   de ignorarse en silencio. Vale también para los objetos anidados (ejercicios y series).
+3. **`updatable = false` en la entidad** para `email`, `rol`, y todos los campos de `Rutina`,
+   `EjercicioRutina`, `Ejecucion` y `SerieEjecutada`. Ni un bug en el servicio podría emitir
+   un `UPDATE` sobre esas columnas.
+4. **Campos por rol validados contra el registro editado**
+   (`ServicioUsuarios.validarCamposPorRol`): `pesoKg` solo para un atleta y `aniosServicio`
+   solo para un entrenador. Se evalúa el rol **del usuario editado, no el de quien edita**, y
+   por eso el admin tampoco puede ponerle peso a un entrenador (lo usan `ServicioPerfil`,
+   `ServicioAdmin.actualizar` y el alta, vía `ServicioAutenticacion.registrar`).
+
+La única escritura sobre `entrenador_creador_id` es `RutinaRepository.soltarEntrenadorCreador`,
+usada al eliminar un entrenador para que el atleta conserve sus rutinas.
+
+**Lectura.** Nunca se serializa una entidad: hay un DTO de salida por cada vista
+(`web/dto/out/`), y `PerfilPublicoResponse` tiene una fábrica por rol (`deEntrenador`,
+`deAtleta`) para que cada una exponga solo los campos de ese rol. Los campos nulos no se
+serializan (`default-property-inclusion: non_null`), así que el `pesoKg` de un atleta no
+aparece en el perfil de un entrenador ni al revés.
+
+### Matriz de campos
+
+Notación: **L** lee · **E** escribe (se puede modificar después de creado) · **C** se fija al
+crear y no se puede cambiar · **–** nada. "Propio" es el usuario sobre su propio registro.
+"Gestionable" es un atleta o un entrenador (el admin no ve ni edita a otros admins).
+
+**`Usuario`**
+
+| Campo | Propio | Entrenador con vínculo vigente (ve a su atleta) | Atleta (ve a un entrenador) | Entrenador sin vínculo (ve al solicitante) | Otro atleta / entrenador | Admin (sobre un gestionable) | Anónimo |
+|---|---|---|---|---|---|---|---|
+| `id` | L | L | L | – | – | L | – |
+| `email` | L · C | – | – | – | – | L · C | C (registro) |
+| `rol` | L · C | – | – | – | – | L · C | C (registro, sin ADMIN) |
+| `passwordHash` | – | – | – | – | – | – | – |
+| `nombre` | L · E | L | L | L | – | L · E | C |
+| `apellido` | L · E | L | L | L | – | L · E | C |
+| `fechaNacimiento` | L · E | – | – | – | – | L · E | C |
+| `edad` (calculada) | L | L | L | L | – | L | – |
+| `descripcion` | L · E | L | L | – | – | L · E | C |
+| `pesoKg` (solo atleta) | L · E | L | n/a | – | – | L · E si es atleta | C si es atleta |
+| `aniosServicio` (solo entrenador) | L · E | n/a | L | n/a | – | L · E si es entrenador | C si es entrenador |
+| `creadoEn` | – | – | – | – | – | L | – |
+
+El `passwordHash` se calcula con la contraseña del registro o del alta y nunca sale en ninguna
+respuesta. No existe todavía un endpoint para cambiar la contraseña.
+
+**`Rutina` y `EjercicioRutina`**
+
+| Campo | Atleta dueño | Entrenador creador (vínculo vigente) | Entrenador sin vínculo / otro | Otro atleta | Admin |
+|---|---|---|---|---|---|
+| `id` | L | L | – | – | – |
+| `nombre` | L · C | L · C (al asignarla) | – | – | – |
+| `origen` (ASIGNADA / PROPIA) | L (lo fija el servidor) | L (lo fija el servidor) | – | – | – |
+| `atleta` (dueño) | – (implícito) | – (implícito) | – | – | – |
+| `entrenadorCreador` | L, solo nombre y apellido (`creadaPor`) | L, solo nombre y apellido | – | – | – |
+| `creadaEn` | L | L | – | – | – |
+| `ejercicios[]`: `id`, `orden`, `nombre`, `series`, `repeticiones` | L · C | L · C | – | – | – |
+
+El entrenador ve solo las rutinas que **él asignó**; las rutinas propias del atleta no. Ninguna
+rutina se puede editar hoy: cualquier campo del body fuera de `nombre` y `ejercicios` da 400.
+
+**`Ejecucion` y `SerieEjecutada`**
+
+| Campo | Atleta dueño | Entrenador creador de la rutina (vínculo vigente) | Otros | Admin |
+|---|---|---|---|---|
+| `id` | L | L | – | – |
+| `fecha` | L · C | L | – | – |
+| `rutina` (`idRutina`, `nombreRutina`) | L (sale del path al crear) | L | – | – |
+| `atleta` | – (sale de la sesión) | – | – | – |
+| `creadaEn` | – | – | – | – |
+| serie: `idEjercicio`, `nombreEjercicio`, `nroSerie`, `cargaKg` | L · C | L | – | – |
+
+**`Vinculo`**
+
+| Campo | Atleta | Entrenador | Otros | Admin |
+|---|---|---|---|---|
+| `id` | – | – | – | – |
+| `entrenador` / `atleta` | L (perfil público del entrenador) | L (perfil público del atleta) | – | – |
+| `fechaInicio` (`desde`) | L | L | – | – |
+| `fechaFin` | – | L (en `exatletas`) | – | – |
+
+El vínculo no tiene body de escritura: se crea al aceptar una solicitud y se cierra al
+desvincular, sin campos que el cliente mande.
+
+**`SolicitudVinculacion`**
+
+| Campo | Atleta emisor | Entrenador destinatario | Otros | Admin |
+|---|---|---|---|---|
+| `id` | L | L | – | – |
+| `entrenador` | C (solo el `idEntrenador`); L perfil público | – (es él) | – | – |
+| `atleta` | – (sale de la sesión) | L, solo nombre, apellido y edad | – | – |
+| `estado` | L (cambia con `cancelar`) | L (cambia con `aceptar` / `rechazar`) | – | – |
+| `creadaEn` | L | L | – | – |
+| `resueltaEn` | – | – | – | – |
+
+### Decisiones
+
+1. **Qué ve el entrenador de su atleta (vínculo vigente):** nombre, apellido, **edad** (no la
+   fecha de nacimiento), descripción y peso. **No ve el email.** Es lo que ya hacía
+   `PerfilPublicoResponse.deAtleta`.
+2. **Qué ve el entrenador de quien le pidió vínculo (todavía sin vínculo):** **solo nombre,
+   apellido y edad.** Antes `SolicitudRecibidaResponse` devolvía el perfil completo del atleta
+   (con `id`, `pesoKg` y `descripcion`) antes de que el entrenador aceptara; se corrigió. La
+   pantalla de solicitudes solo mostraba nombre y edad, así que no cambia nada visible. El
+   peso y la descripción aparecen cuando el vínculo está vigente.
+3. **Qué ve el atleta del entrenador:** nombre, apellido, edad, descripción y años de
+   servicio, tanto de su entrenador como de los entrenadores del listado para pedir vínculo.
+   **No ve el email ni la fecha de nacimiento.**
+4. **Del exatleta** el entrenador conserva solo nombre, apellido y las fechas del vínculo.
+5. **El admin** ve la ficha completa de atletas y entrenadores, con el email, salvo el hash.
+   Sobre sus propios datos edita por `PUT /api/perfil` con la misma lista blanca (sin peso ni
+   años de servicio: su rol no los tiene).
+6. **`email` y `rol` no se pueden cambiar después de creados, ni siquiera el admin.**
+
+### Tests
+
+`web/CamposPorRolTest` (20): compara el **conjunto exacto de claves** del JSON de cada
+endpoint de lectura contra la matriz, y manda cada campo prohibido a cada endpoint de escritura.
+
+| Caso | Test |
+|---|---|
+| `/api/auth/yo` y `/api/perfil` de atleta, entrenador y admin | `sesionPropia`, `perfilPropio` |
+| El atleta ve del entrenador solo el perfil público (detalle, listado y solicitudes enviadas) | `atletaVeASuEntrenador`, `atletaVeEntrenadoresYSolicitudes` |
+| El entrenador ve al atleta vigente con edad y peso | `entrenadorVeASuAtleta` |
+| Antes del vínculo, el solicitante solo muestra nombre, apellido y edad | `entrenadorSinVinculoVeLoMinimo` |
+| El exatleta solo muestra nombre y fechas | `entrenadorVeAlExatleta` |
+| Rutinas y ejecuciones: mismas claves para el atleta y para el entrenador | `rutinas`, `ejecuciones` |
+| El admin ve la ficha completa, sin hash | `adminVeLaFichaCompleta` |
+| Ninguna respuesta a un tercero trae email, fecha de nacimiento ni hash | `ningunDatoPrivadoSeFiltra` |
+| `PUT /api/perfil` rechaza `rol`, `email`, `id`, `passwordHash`, `creadoEn`, `atleta`, `origen`, `entrenadorCreador` (atleta y entrenador) | `perfilPropioRechazaCamposProhibidos` |
+| `PUT /api/admin/usuarios/{id}` rechaza los mismos campos | `adminRechazaCamposProhibidos` |
+| Registro público y alta por el admin rechazan campos que el cliente no decide | `altasRechazanCamposProhibidos` |
+| El admin no puede poner `pesoKg` a un entrenador ni `aniosServicio` a un atleta, ni dejar al atleta sin peso | `adminNoMezclaCamposDeRol` |
+| El alta por el admin tampoco mezcla campos de rol | `altaDelAdminNoMezclaCamposDeRol` |
+| El admin editando su propio perfil no puede agregarse peso ni años | `adminNoSeAgregaCamposDeRol` |
+| Rutinas (atleta y entrenador), ejecuciones y solicitudes rechazan campos prohibidos, también dentro de cada ejercicio y serie | `rutinasRechazanCamposProhibidos`, `ejecucionesRechazanCamposProhibidos`, `solicitudesRechazanCamposProhibidos` |
+
+Cada test de escritura verifica que **la base no cambió** (usuarios con su hash, rutinas,
+ejecuciones, solicitudes y vínculos) y que el mismo cuerpo sin el campo extra sí es válido, para
+que el 400 no sea por otra causa. Complementan a `web/RegistroTest` y `web/PerfilTest`
+(RS15). Se comprobó que los tests detectan una regresión: con un campo extra en el DTO público,
+con el DTO anterior de la solicitud y sin la validación por rol del admin, fallan 6 de los 20.
+
+**Verificación manual**
+
+- Como `lucia.ferreyra@sherpa.dev`, abrir el detalle de un atleta y mirar en DevTools la
+  respuesta de `/api/entrenador/atletas/{id}`: solo `id`, `nombre`, `apellido`, `edad`,
+  `descripcion` y `pesoKg`.
+- `curl` con un `PUT /api/perfil` que incluya `"rol":"ADMIN"` → 400.
+
+---
+
+## RS08 — ⚠️ Definición a confirmar con el equipo
 
 Se adopta la definición del Informe v1, que agrupa RS01, RS03, RS05 y RS08 bajo
 "control de acceso por rol en el servidor" (amenaza A2). Con esa definición, RS08 queda
@@ -694,23 +867,7 @@ el fail closed fallan 6 de ellos (5 errores y 1 fallo).
 
 ### Mass assignment
 
-Tres barreras, en capas:
-
-1. **DTOs de entrada con lista blanca de campos.** Son records que solo declaran lo editable.
-   `RegistroRequest` y `CrearUsuarioAdminRequest` usan el enum **`RolRegistro`, que no
-   incluye `ADMIN`**: un body con `"rol":"ADMIN"` falla al deserializar y devuelve 400 sin
-   llegar al servicio. Es más fuerte que validar y rechazar, porque el valor no es ni
-   representable.
-2. **Jackson en modo estricto** (`fail-on-unknown-properties: true`): un body con un campo
-   que el DTO no declara (`id`, `passwordHash`, `origen`, `idAtleta`) devuelve 400 en lugar de
-   ignorarse en silencio.
-3. **`updatable = false` en la entidad** para `email`, `rol`, y todos los campos de `Rutina`,
-   `Ejecucion` y `SerieEjecutada`. Ni un bug en el servicio podría emitir un `UPDATE` sobre
-   esas columnas.
-
-La única escritura que existe sobre `entrenador_creador_id` es
-`RutinaRepository.soltarEntrenadorCreador`, usada al eliminar un entrenador para que el
-atleta conserve sus rutinas.
+Ver **RS06**: la defensa en capas contra mass assignment y la matriz de campos están ahí.
 
 ### Validación de entradas
 
