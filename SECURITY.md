@@ -43,6 +43,7 @@ por endpoint (método + patrón exacto). Lo que no está acá se deniega
 | GET | `/api/auth/yo` | autenticado (cualquier rol) | propio | 401 sin sesión |
 | GET | `/api/perfil` | autenticado (cualquier rol) | propio | 401 sin sesión |
 | PUT | `/api/perfil` | autenticado (cualquier rol) | propio | 401 sin sesión |
+| PUT | `/api/perfil/preferencias` | autenticado (cualquier rol) | propio | 401 sin sesión |
 | GET | `/api/atleta/rutinas` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
 | GET | `/api/atleta/rutinas/{idRutina}` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
 | POST | `/api/atleta/rutinas` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
@@ -79,6 +80,23 @@ aplica la consulta, ver RS04). Las tres respuestas quedan en el log de auditorí
 `POST /api/auth/logout` no figura: lo atiende el `LogoutFilter` de Spring Security antes de
 la autorización y no llega a ningún handler ni servicio. Exige CSRF y sin sesión responde
 204 igual (es idempotente).
+
+---
+
+## RF7 — Preferencias y teléfono de contacto (RS06)
+
+- `PUT /api/perfil/preferencias` (`ActualizarPreferenciasRequest`) solo acepta `tema`
+  (`CLARO`/`OSCURO`/`SISTEMA`). Cualquier otro campo (`rol`, `email`, `telefono`) o un tema
+  inválido da 400. El tema viaja en `PerfilResponse` y `SesionResponse`.
+- `telefono` es opcional (≤ 30, solo dígitos, espacios, `+`, `()` y `-`), editable por
+  `PUT /api/perfil`; null o vacío lo borra.
+- **Matriz de campos (SH-27), teléfono:** lo ven el propio usuario (`PerfilResponse`) y la
+  contraparte con vínculo vigente (`PerfilPublicoResponse.deAtletaVinculado` /
+  `deEntrenadorVinculado`: mi entrenador, mis atletas, detalle de atleta). No viaja en la
+  búsqueda de entrenadores, en las solicitudes (enviadas/recibidas) ni en el historial de
+  exatletas.
+- El tema se aplica con el atributo `data-tema` en `<html>` (CSP `style-src 'self'`).
+- Tests: `web/PerfilTest` (sección RF7).
 
 ---
 

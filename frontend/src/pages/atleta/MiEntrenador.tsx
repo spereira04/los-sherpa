@@ -68,6 +68,9 @@ export function MiEntrenador() {
             Edad: {vinculo.datos.entrenador.edad} anos · Anos de servicio:{' '}
             {vinculo.datos.entrenador.aniosServicio ?? '—'}
           </p>
+          {vinculo.datos.entrenador.telefono !== undefined && (
+            <p>Telefono: {vinculo.datos.entrenador.telefono}</p>
+          )}
           <p>{vinculo.datos.entrenador.descripcion ?? 'Sin descripcion.'}</p>
           <p className="ayuda">Vinculados desde el {fechaCorta(vinculo.datos.desde)}.</p>
         </Tarjeta>

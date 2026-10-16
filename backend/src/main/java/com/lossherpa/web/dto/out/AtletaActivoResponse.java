@@ -9,7 +9,7 @@ public record AtletaActivoResponse(PerfilPublicoResponse atleta, LocalDate desde
 
     public static AtletaActivoResponse de(Vinculo vinculo) {
         return new AtletaActivoResponse(
-                PerfilPublicoResponse.deAtleta(vinculo.getAtleta()),
+                PerfilPublicoResponse.deAtletaVinculado(vinculo.getAtleta()),
                 vinculo.getFechaInicio());
     }
 }
