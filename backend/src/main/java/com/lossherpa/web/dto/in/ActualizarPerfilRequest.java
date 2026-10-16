@@ -13,7 +13,7 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 
 /**
- * Lista blanca de lo editable del perfil.
+ * RS06: lista blanca de lo editable del perfil (escritura a nivel de campo).
  *
  * No incluye email (inmutable), rol (inmutable), id, contrasena ni ningun campo de
  * autorizacion. Como ademas el mapper de Jackson rechaza propiedades desconocidas
@@ -47,6 +47,12 @@ public record ActualizarPerfilRequest(
 
         @Min(value = 0, message = "Los anos de servicio no pueden ser negativos")
         @Max(value = 80, message = "Los anos de servicio no pueden superar 80")
-        Integer aniosServicio
+        Integer aniosServicio,
+
+        // RF7 / RS06: opcional (null o vacio lo borra).
+        @Size(max = 30, message = "El telefono no puede superar los 30 caracteres")
+        @Pattern(regexp = "^\\s*(\\+?[0-9][0-9 ()\\-]{5,28}[0-9])?\\s*$",
+                message = "El telefono solo puede tener numeros, espacios, parentesis y guiones")
+        String telefono
 ) {
 }

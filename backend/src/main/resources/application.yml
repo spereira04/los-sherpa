@@ -18,9 +18,16 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: update
+    # schema.sql (indices unicos parciales de vinculacion) corre despues de Hibernate.
+    defer-datasource-initialization: true
     properties:
       hibernate:
         format_sql: false
+
+  sql:
+    init:
+      # SQLite no cuenta como base embebida: sin esto el script no se ejecuta.
+      mode: always
 
   jackson:
     default-property-inclusion: non_null

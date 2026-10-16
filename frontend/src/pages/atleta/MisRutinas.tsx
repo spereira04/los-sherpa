@@ -87,12 +87,14 @@ export function MisRutinas() {
               {rutina.creadaPor !== undefined && `por ${rutina.creadaPor} · `}
               Creada el {fechaCorta(rutina.creadaEn)}
             </p>
+            {rutina.observaciones && <p>{rutina.observaciones}</p>}
             <table>
               <thead>
                 <tr>
                   <th>Ejercicio</th>
                   <th>Series</th>
                   <th>Repeticiones</th>
+                  <th>Observaciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -101,6 +103,7 @@ export function MisRutinas() {
                     <td>{ejercicio.nombre}</td>
                     <td>{ejercicio.series}</td>
                     <td>{ejercicio.repeticiones}</td>
+                    <td>{ejercicio.observaciones ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>

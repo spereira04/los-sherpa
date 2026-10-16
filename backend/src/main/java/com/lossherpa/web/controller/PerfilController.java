@@ -2,6 +2,7 @@ package com.lossherpa.web.controller;
 
 import com.lossherpa.service.ServicioPerfil;
 import com.lossherpa.web.dto.in.ActualizarPerfilRequest;
+import com.lossherpa.web.dto.in.ActualizarPreferenciasRequest;
 import com.lossherpa.web.dto.out.PerfilResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,5 +31,12 @@ public class PerfilController {
     @PutMapping
     public PerfilResponse actualizar(@Valid @RequestBody ActualizarPerfilRequest datos) {
         return PerfilResponse.de(servicioPerfil.actualizar(datos));
+    }
+
+    /** RF7 / RS04: preferencias operativas (tema) del usuario autenticado. */
+    @PutMapping("/preferencias")
+    public PerfilResponse actualizarPreferencias(
+            @Valid @RequestBody ActualizarPreferenciasRequest datos) {
+        return PerfilResponse.de(servicioPerfil.actualizarPreferencias(datos));
     }
 }

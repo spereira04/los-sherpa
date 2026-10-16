@@ -1,6 +1,7 @@
 package com.lossherpa.web.dto.out;
 
 import com.lossherpa.domain.Rol;
+import com.lossherpa.domain.Tema;
 import com.lossherpa.domain.Usuario;
 import com.lossherpa.service.CalculadoraEdad;
 
@@ -23,7 +24,9 @@ public record PerfilResponse(
         int edad,
         String descripcion,
         Double pesoKg,
-        Integer aniosServicio
+        Integer aniosServicio,
+        String telefono,
+        Tema tema
 ) {
 
     public static PerfilResponse de(Usuario usuario) {
@@ -37,6 +40,8 @@ public record PerfilResponse(
                 CalculadoraEdad.edad(usuario.getFechaNacimiento()),
                 usuario.getDescripcion(),
                 usuario.getPesoKg(),
-                usuario.getAniosServicio());
+                usuario.getAniosServicio(),
+                usuario.getTelefono(),
+                usuario.getTema());
     }
 }

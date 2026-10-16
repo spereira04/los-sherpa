@@ -6,7 +6,7 @@ lo cubren. En el código, cada punto está marcado con un comentario (`// RS04`,
 Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las de tests a
 `backend/src/test/java/com/lossherpa/`.
 
-**Estado de la suite: 181 tests, todos en verde** (`cd backend && ./mvnw test`).
+**Estado de la suite: 201 tests, todos en verde** (`cd backend && ./mvnw test`).
 
 ---
 
@@ -18,14 +18,16 @@ Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las
 | RS03 | Modelo híbrido RBAC + ABAC | ✅ |
 | RS04 | Control de acceso a nivel de dato (ASVS 8.2.2) | ✅ |
 | RS05 | Controles solo en el servidor | ✅ |
+| RS06 | Control de acceso a nivel de campo / mass assignment (ASVS 8.2.3) | ✅ |
 | RS07 | No exposición de IDs | ✅ |
-| RS08 | ⚠️ Control por rol en el servidor (definición del Informe v1, a confirmar) | ✅ |
+| RS08 | Control por rol en el servidor (definición aplicada del Informe v1) | ✅ |
 | RS10 | Impacto inmediato de cambios de autorización (ASVS 8.3.2) | ✅ |
 | RS12 | Logs de autorización | ✅ |
 | RS13 | Deny by default, incluidos los estáticos | ✅ |
 | RS14 | Sin configuración por defecto | ✅ |
 | RS15 | Tests unitarios y de integración | ✅ |
 | RS17 | Protección de logs | ✅ |
+| RS18 | Deny by default ante errores (fail closed) | ✅ |
 
 ---
 
@@ -43,11 +45,14 @@ por endpoint (método + patrón exacto). Lo que no está acá se deniega
 | GET | `/api/auth/yo` | autenticado (cualquier rol) | propio | 401 sin sesión |
 | GET | `/api/perfil` | autenticado (cualquier rol) | propio | 401 sin sesión |
 | PUT | `/api/perfil` | autenticado (cualquier rol) | propio | 401 sin sesión |
+| PUT | `/api/perfil/preferencias` | autenticado (cualquier rol) | propio | 401 sin sesión |
 | GET | `/api/atleta/rutinas` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
 | GET | `/api/atleta/rutinas/{idRutina}` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
 | POST | `/api/atleta/rutinas` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
 | POST | `/api/atleta/rutinas/{idRutina}/ejecuciones` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
 | GET | `/api/atleta/ejecuciones` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
+| DELETE | `/api/atleta/ejecuciones/{idEjecucion}` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 ajena/inexistente |
+| DELETE | `/api/atleta/ejecuciones` | ATLETA | dueño | 401 sin sesión · 403 otro rol |
 | GET | `/api/atleta/entrenadores` | ATLETA | — | 401 sin sesión · 403 otro rol |
 | GET | `/api/atleta/solicitudes` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
 | POST | `/api/atleta/solicitudes` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
@@ -63,6 +68,8 @@ por endpoint (método + patrón exacto). Lo que no está acá se deniega
 | DELETE | `/api/entrenador/atletas/{idAtleta}/vinculo` | ENTRENADOR | vínculo vigente | 401 sin sesión · 403 otro rol · 404 sin relación |
 | GET | `/api/entrenador/atletas/{idAtleta}/rutinas` | ENTRENADOR | vínculo vigente + asignada por mí | 401 sin sesión · 403 otro rol · 404 sin relación |
 | POST | `/api/entrenador/atletas/{idAtleta}/rutinas` | ENTRENADOR | vínculo vigente | 401 sin sesión · 403 otro rol · 404 sin relación |
+| PUT | `/api/entrenador/atletas/{idAtleta}/rutinas/{idRutina}` | ENTRENADOR | vínculo vigente + asignada por mí | 401 sin sesión · 403 otro rol · 404 sin relación |
+| DELETE | `/api/entrenador/atletas/{idAtleta}/rutinas/{idRutina}` | ENTRENADOR | vínculo vigente + asignada por mí | 401 sin sesión · 403 otro rol · 404 sin relación |
 | GET | `/api/entrenador/atletas/{idAtleta}/ejecuciones` | ENTRENADOR | vínculo vigente + asignada por mí | 401 sin sesión · 403 otro rol · 404 sin relación |
 | GET | `/api/admin/usuarios` | ADMIN | gestionable (no ADMIN) | 401 sin sesión · 403 otro rol · 404 sin relación |
 | POST | `/api/admin/usuarios` | ADMIN | — | 401 sin sesión · 403 otro rol |
@@ -79,6 +86,23 @@ aplica la consulta, ver RS04). Las tres respuestas quedan en el log de auditorí
 `POST /api/auth/logout` no figura: lo atiende el `LogoutFilter` de Spring Security antes de
 la autorización y no llega a ningún handler ni servicio. Exige CSRF y sin sesión responde
 204 igual (es idempotente).
+
+---
+
+## RF7 — Preferencias y teléfono de contacto (RS06)
+
+- `PUT /api/perfil/preferencias` (`ActualizarPreferenciasRequest`) solo acepta `tema`
+  (`CLARO`/`OSCURO`/`SISTEMA`). Cualquier otro campo (`rol`, `email`, `telefono`) o un tema
+  inválido da 400. El tema viaja en `PerfilResponse` y `SesionResponse`.
+- `telefono` es opcional (≤ 30, solo dígitos, espacios, `+`, `()` y `-`), editable por
+  `PUT /api/perfil`; null o vacío lo borra.
+- **Matriz de campos (SH-27), teléfono:** lo ven el propio usuario (`PerfilResponse`) y la
+  contraparte con vínculo vigente (`PerfilPublicoResponse.deAtletaVinculado` /
+  `deEntrenadorVinculado`: mi entrenador, mis atletas, detalle de atleta). No viaja en la
+  búsqueda de entrenadores, en las solicitudes (enviadas/recibidas) ni en el historial de
+  exatletas.
+- El tema se aplica con el atributo `data-tema` en `<html>` (CSP `style-src 'self'`).
+- Tests: `web/PerfilTest` (sección RF7).
 
 ---
 
@@ -154,7 +178,7 @@ vez falla es un bug de la configuración, y responde 403 auditado igual.
 | Atributo | Predicado | Dónde se aplica |
 |---|---|---|
 | `PROPIO` | el recurso es el usuario de la sesión | `UsuarioActual.id()` en `ServicioUsuarios`, `ServicioPerfil`, `ServicioAutenticacion` |
-| `DUENO` | `atleta.id = :yo` (o `entrenador.id = :yo` en sus vínculos finalizados) | `RutinaRepository.buscarDeAtleta`, `listarPorAtleta`; `EjecucionRepository.listarPorAtleta`; `SolicitudVinculacionRepository.buscarDeAtleta`; `VinculoRepository.listarFinalizadosPorEntrenador` |
+| `DUENO` | `atleta.id = :yo` (o `entrenador.id = :yo` en sus vínculos finalizados) | `RutinaRepository.buscarDeAtleta`, `listarPorAtleta`; `EjecucionRepository.buscarDeAtleta`, `listarPorAtleta`; `SolicitudVinculacionRepository.buscarDeAtleta`; `VinculoRepository.listarFinalizadosPorEntrenador` |
 | `DESTINATARIO` | la solicitud está dirigida al entrenador de la sesión | `SolicitudVinculacionRepository.buscarDeEntrenador` |
 | `VINCULO_VIGENTE` | vínculo entrenador↔atleta con `fechaFin is null` | `VinculoRepository.buscarActivoPorEntrenadorYAtleta`, `ServicioVinculacion.vinculoActivoCon` |
 | `ASIGNADA_POR_MI` | vínculo vigente + `origen = ASIGNADA` + `entrenadorCreador = :yo` | `RutinaRepository.listarAsignadasPorEntrenador`, `EjecucionRepository.listarAsignadasPorEntrenador` |
@@ -185,11 +209,11 @@ que alguien pueda olvidar.
 | `security/UsuarioActual.java` | Única fuente del id autenticado (`id()`, `rol()`) |
 | `service/ServicioUsuarios.java` | `autenticado()`, `autenticadoConRol(...)` |
 | `repository/RutinaRepository.java` | `buscarDeAtleta`, `listarPorAtleta`, `listarAsignadasPorEntrenador`, `buscarAsignadaDeEntrenador` |
-| `repository/EjecucionRepository.java` | `listarPorAtleta`, `listarAsignadasPorEntrenador` |
+| `repository/EjecucionRepository.java` | `buscarDeAtleta`, `listarPorAtleta`, `listarAsignadasPorEntrenador` |
 | `repository/SolicitudVinculacionRepository.java` | `buscarDeAtleta`, `buscarDeEntrenador` |
 | `repository/VinculoRepository.java` | `buscarActivoPorAtleta`, `buscarActivoPorEntrenadorYAtleta` |
 | `service/ServicioVinculacion.java` | `vinculoActivoCon(...)`: punto único donde el entrenador prueba su relación vigente |
-| `service/ServicioEjecuciones.java` | `registrar(...)`: los `idEjercicio` del cliente se validan contra los ejercicios de **esa** rutina |
+| `service/ServicioEjecuciones.java` | `registrar(...)`: los `idEjercicio` del cliente se validan contra los ejercicios de **esa** rutina; `eliminar(...)` y `eliminarTodoMiHistorial()` borran solo datos del atleta autenticado |
 | `repository/UsuarioRepository.java` | `buscarGestionablePorAdmin`: excluye a los ADMIN en el `where` |
 
 **Decisión: la denegación a nivel de dato devuelve 404, no 403.** Un 403 confirmaría que el
@@ -211,6 +235,9 @@ auditoría con el motivo real (ver RS12).
 | Entrenador acepta una solicitud dirigida a otro | `web/VinculacionTest.noPuedeAceptarSolicitudAjena` |
 | Entrenador desvincula a un atleta ajeno | `web/VinculacionTest.noPuedeDesvincularAtletaAjeno` |
 | Historial de ejecuciones de otro usuario | `web/EjecucionesTest.elHistorialNoFiltraDeOtros` |
+| Atleta borra una ejecución propia; ya no aparece para atleta ni entrenador | `web/EjecucionesTest.eliminaSuEjecucion` |
+| Atleta intenta borrar ejecución ajena y recibe 404 auditado | `web/EjecucionesTest.noEliminaEjecucionAjena` |
+| Borrado total solo afecta el historial del atleta autenticado | `web/EjecucionesTest.eliminaTodoSuHistorialSinAfectarAOtros` |
 | Serie de un ejercicio de otra rutina | `web/EjecucionesTest.serieDeOtraRutinaSeRechaza` |
 | Solicitud en nombre de otro atleta | `web/VinculacionTest.noSePuedeSolicitarEnNombreDeOtro` |
 | Historial de exatletas de otro entrenador | `web/VinculacionTest.elHistorialEsPropio` |
@@ -277,18 +304,193 @@ filtra a **otros** usuarios; el rol y la identidad del admin salen igual de la s
 
 ---
 
+## RS06 — Control de acceso a nivel de campo (ASVS v5 8.2.3)
+
+**Qué cubre.** Dos lados de BOPLA (Broken Object Property Level Authorization):
+
+- **Escritura (CWE-915, mass assignment).** Un usuario no puede modificar campos que no le
+  corresponden (rol, email, dueño, origen de una rutina, campos de otro rol), ni siquiera
+  agregándolos al JSON.
+- **Lectura (CWE-213, exposición excesiva).** Cada respuesta incluye **solo los campos que
+  ese consumidor puede ver**.
+
+### Cómo está implementado
+
+**Escritura**, en capas:
+
+1. **DTOs de entrada con lista blanca de campos** (`web/dto/in/`). Son records que solo
+   declaran lo editable. `RegistroRequest` y `CrearUsuarioAdminRequest` usan el enum
+   **`RolRegistro`, que no incluye `ADMIN`**: un body con `"rol":"ADMIN"` falla al
+   deserializar y devuelve 400 sin llegar al servicio. Es más fuerte que validar y rechazar,
+   porque el valor no es ni representable.
+2. **Jackson en modo estricto** (`fail-on-unknown-properties: true`): un body con un campo
+   que el DTO no declara (`id`, `passwordHash`, `origen`, `idAtleta`) devuelve 400 en lugar
+   de ignorarse en silencio. Vale también para los objetos anidados (ejercicios y series).
+3. **`updatable = false` en la entidad** para `email`, `rol`, y todos los campos de `Rutina`,
+   `EjercicioRutina`, `Ejecucion` y `SerieEjecutada`. Ni un bug en el servicio podría emitir
+   un `UPDATE` sobre esas columnas.
+4. **Campos por rol validados contra el registro editado**
+   (`ServicioUsuarios.validarCamposPorRol`): `pesoKg` solo para un atleta y `aniosServicio`
+   solo para un entrenador. Se evalúa el rol **del usuario editado, no el de quien edita**, y
+   por eso el admin tampoco puede ponerle peso a un entrenador (lo usan `ServicioPerfil`,
+   `ServicioAdmin.actualizar` y el alta, vía `ServicioAutenticacion.registrar`).
+
+La única escritura sobre `entrenador_creador_id` es `RutinaRepository.soltarEntrenadorCreador`,
+usada al eliminar un entrenador para que el atleta conserve sus rutinas.
+
+**Lectura.** Nunca se serializa una entidad: hay un DTO de salida por cada vista
+(`web/dto/out/`), y `PerfilPublicoResponse` tiene una fábrica por rol (`deEntrenador`,
+`deAtleta`) para que cada una exponga solo los campos de ese rol. Los campos nulos no se
+serializan (`default-property-inclusion: non_null`), así que el `pesoKg` de un atleta no
+aparece en el perfil de un entrenador ni al revés.
+
+### Matriz de campos
+
+Notación: **L** lee · **E** escribe (se puede modificar después de creado) · **C** se fija al
+crear y no se puede cambiar · **–** nada. "Propio" es el usuario sobre su propio registro.
+"Gestionable" es un atleta o un entrenador (el admin no ve ni edita a otros admins).
+
+**`Usuario`**
+
+| Campo | Propio | Entrenador con vínculo vigente (ve a su atleta) | Atleta (ve a un entrenador) | Entrenador sin vínculo (ve al solicitante) | Otro atleta / entrenador | Admin (sobre un gestionable) | Anónimo |
+|---|---|---|---|---|---|---|---|
+| `id` | L | L | L | – | – | L | – |
+| `email` | L · C | – | – | – | – | L · C | C (registro) |
+| `rol` | L · C | – | – | – | – | L · C | C (registro, sin ADMIN) |
+| `passwordHash` | – | – | – | – | – | – | – |
+| `nombre` | L · E | L | L | L | – | L · E | C |
+| `apellido` | L · E | L | L | L | – | L · E | C |
+| `fechaNacimiento` | L · E | – | – | – | – | L · E | C |
+| `edad` (calculada) | L | L | L | L | – | L | – |
+| `descripcion` | L · E | L | L | – | – | L · E | C |
+| `pesoKg` (solo atleta) | L · E | L | n/a | – | – | L · E si es atleta | C si es atleta |
+| `aniosServicio` (solo entrenador) | L · E | n/a | L | n/a | – | L · E si es entrenador | C si es entrenador |
+| `creadoEn` | – | – | – | – | – | L | – |
+
+El `passwordHash` se calcula con la contraseña del registro o del alta y nunca sale en ninguna
+respuesta. No existe todavía un endpoint para cambiar la contraseña.
+
+**`Rutina` y `EjercicioRutina`**
+
+| Campo | Atleta dueño | Entrenador creador (vínculo vigente) | Entrenador sin vínculo / otro | Otro atleta | Admin |
+|---|---|---|---|---|---|
+| `id` | L | L | – | – | – |
+| `nombre` | L · C | L · C (al asignarla) | – | – | – |
+| `origen` (ASIGNADA / PROPIA) | L (lo fija el servidor) | L (lo fija el servidor) | – | – | – |
+| `atleta` (dueño) | – (implícito) | – (implícito) | – | – | – |
+| `entrenadorCreador` | L, solo nombre y apellido (`creadaPor`) | L, solo nombre y apellido | – | – | – |
+| `creadaEn` | L | L | – | – | – |
+| `ejercicios[]`: `id`, `orden`, `nombre`, `series`, `repeticiones` | L · C | L · C | – | – | – |
+
+El entrenador ve solo las rutinas que **él asignó**; las rutinas propias del atleta no. Ninguna
+rutina se puede editar hoy: cualquier campo del body fuera de `nombre` y `ejercicios` da 400.
+
+**`Ejecucion` y `SerieEjecutada`**
+
+| Campo | Atleta dueño | Entrenador creador de la rutina (vínculo vigente) | Otros | Admin |
+|---|---|---|---|---|
+| `id` | L | L | – | – |
+| `fecha` | L · C | L | – | – |
+| `rutina` (`idRutina`, `nombreRutina`) | L (sale del path al crear) | L | – | – |
+| `atleta` | – (sale de la sesión) | – | – | – |
+| `creadaEn` | – | – | – | – |
+| serie: `idEjercicio`, `nombreEjercicio`, `nroSerie`, `cargaKg` | L · C | L | – | – |
+
+**`Vinculo`**
+
+| Campo | Atleta | Entrenador | Otros | Admin |
+|---|---|---|---|---|
+| `id` | – | – | – | – |
+| `entrenador` / `atleta` | L (perfil público del entrenador) | L (perfil público del atleta) | – | – |
+| `fechaInicio` (`desde`) | L | L | – | – |
+| `fechaFin` | – | L (en `exatletas`) | – | – |
+
+El vínculo no tiene body de escritura: se crea al aceptar una solicitud y se cierra al
+desvincular, sin campos que el cliente mande.
+
+**`SolicitudVinculacion`**
+
+| Campo | Atleta emisor | Entrenador destinatario | Otros | Admin |
+|---|---|---|---|---|
+| `id` | L | L | – | – |
+| `entrenador` | C (solo el `idEntrenador`); L perfil público | – (es él) | – | – |
+| `atleta` | – (sale de la sesión) | L, solo nombre, apellido y edad | – | – |
+| `estado` | L (cambia con `cancelar`) | L (cambia con `aceptar` / `rechazar`) | – | – |
+| `creadaEn` | L | L | – | – |
+| `resueltaEn` | – | – | – | – |
+
+### Decisiones
+
+1. **Qué ve el entrenador de su atleta (vínculo vigente):** nombre, apellido, **edad** (no la
+   fecha de nacimiento), descripción y peso. **No ve el email.** Es lo que ya hacía
+   `PerfilPublicoResponse.deAtleta`.
+2. **Qué ve el entrenador de quien le pidió vínculo (todavía sin vínculo):** **solo nombre,
+   apellido y edad.** Antes `SolicitudRecibidaResponse` devolvía el perfil completo del atleta
+   (con `id`, `pesoKg` y `descripcion`) antes de que el entrenador aceptara; se corrigió. La
+   pantalla de solicitudes solo mostraba nombre y edad, así que no cambia nada visible. El
+   peso y la descripción aparecen cuando el vínculo está vigente.
+3. **Qué ve el atleta del entrenador:** nombre, apellido, edad, descripción y años de
+   servicio, tanto de su entrenador como de los entrenadores del listado para pedir vínculo.
+   **No ve el email ni la fecha de nacimiento.**
+4. **Del exatleta** el entrenador conserva solo nombre, apellido y las fechas del vínculo.
+5. **El admin** ve la ficha completa de atletas y entrenadores, con el email, salvo el hash.
+   Sobre sus propios datos edita por `PUT /api/perfil` con la misma lista blanca (sin peso ni
+   años de servicio: su rol no los tiene).
+6. **`email` y `rol` no se pueden cambiar después de creados, ni siquiera el admin.**
+
+### Tests
+
+`web/CamposPorRolTest` (20): compara el **conjunto exacto de claves** del JSON de cada
+endpoint de lectura contra la matriz, y manda cada campo prohibido a cada endpoint de escritura.
+
+| Caso | Test |
+|---|---|
+| `/api/auth/yo` y `/api/perfil` de atleta, entrenador y admin | `sesionPropia`, `perfilPropio` |
+| El atleta ve del entrenador solo el perfil público (detalle, listado y solicitudes enviadas) | `atletaVeASuEntrenador`, `atletaVeEntrenadoresYSolicitudes` |
+| El entrenador ve al atleta vigente con edad y peso | `entrenadorVeASuAtleta` |
+| Antes del vínculo, el solicitante solo muestra nombre, apellido y edad | `entrenadorSinVinculoVeLoMinimo` |
+| El exatleta solo muestra nombre y fechas | `entrenadorVeAlExatleta` |
+| Rutinas y ejecuciones: mismas claves para el atleta y para el entrenador | `rutinas`, `ejecuciones` |
+| El admin ve la ficha completa, sin hash | `adminVeLaFichaCompleta` |
+| Ninguna respuesta a un tercero trae email, fecha de nacimiento ni hash | `ningunDatoPrivadoSeFiltra` |
+| `PUT /api/perfil` rechaza `rol`, `email`, `id`, `passwordHash`, `creadoEn`, `atleta`, `origen`, `entrenadorCreador` (atleta y entrenador) | `perfilPropioRechazaCamposProhibidos` |
+| `PUT /api/admin/usuarios/{id}` rechaza los mismos campos | `adminRechazaCamposProhibidos` |
+| Registro público y alta por el admin rechazan campos que el cliente no decide | `altasRechazanCamposProhibidos` |
+| El admin no puede poner `pesoKg` a un entrenador ni `aniosServicio` a un atleta, ni dejar al atleta sin peso | `adminNoMezclaCamposDeRol` |
+| El alta por el admin tampoco mezcla campos de rol | `altaDelAdminNoMezclaCamposDeRol` |
+| El admin editando su propio perfil no puede agregarse peso ni años | `adminNoSeAgregaCamposDeRol` |
+| Rutinas (atleta y entrenador), ejecuciones y solicitudes rechazan campos prohibidos, también dentro de cada ejercicio y serie | `rutinasRechazanCamposProhibidos`, `ejecucionesRechazanCamposProhibidos`, `solicitudesRechazanCamposProhibidos` |
+
+Cada test de escritura verifica que **la base no cambió** (usuarios con su hash, rutinas,
+ejecuciones, solicitudes y vínculos) y que el mismo cuerpo sin el campo extra sí es válido, para
+que el 400 no sea por otra causa. Complementan a `web/RegistroTest` y `web/PerfilTest`
+(RS15). Se comprobó que los tests detectan una regresión: con un campo extra en el DTO público,
+con el DTO anterior de la solicitud y sin la validación por rol del admin, fallan 6 de los 20.
+
+**Verificación manual**
+
+- Como `lucia.ferreyra@sherpa.dev`, abrir el detalle de un atleta y mirar en DevTools la
+  respuesta de `/api/entrenador/atletas/{id}`: solo `id`, `nombre`, `apellido`, `edad`,
+  `descripcion` y `pesoKg`.
+- `curl` con un `PUT /api/perfil` que incluya `"rol":"ADMIN"` → 400.
+
+---
+
 ## RS08 — ⚠️ Definición a confirmar con el equipo
 
-**Definición aplicada: la del Informe v1**, que agrupa RS01, RS03, RS05 y RS08 bajo
+Se adopta la definición del Informe v1, que agrupa RS01, RS03, RS05 y RS08 bajo
 "control de acceso por rol en el servidor" (amenaza A2). Con esa definición, RS08 queda
 cubierto por la política central (RS01), el modelo RBAC + ABAC (RS03) y los controles solo
 en el servidor (RS05). En el código se marca junto con ellos en `PoliticaAcceso`.
 
-**Definición alternativa** ("Corrección Requerimientos", numeración vieja): control de
-acceso **basado en estado**, por ejemplo rechazar con 409 cualquier cambio sobre una sesión
-de entrenamiento que ya no está "en curso". **No está implementada**: hoy `Ejecucion` se crea
-finalizada en un solo POST y no tiene estado. Si el equipo confirma esta definición, se
-implementa junto con SH-38 (RF4), que es el que introduce el ciclo de vida de la ejecución.
+RF4 conserva el registro final en un único POST; no introduce estados `EN_CURSO` /
+`FINALIZADA` ni `@Version`, porque eso pertenece a la definición alternativa (numeración vieja)
+de RS08 y contradice la definición aplicada. Las repeticiones siguen siendo las planificadas
+en la rutina; RF4 registra la carga real por serie y no agrega repeticiones realizadas.
+
+RF4 permite que el atleta elimine una ejecución propia o todo su histórico. El borrado total
+afecta únicamente al atleta autenticado y exige confirmación explícita en la interfaz. La
+eliminación queda registrada en auditoría sin incluir datos de las series.
 
 ---
 
@@ -345,10 +547,14 @@ garantía.
 **Cómo está implementado.** `security/AuditorAcceso.java` emite **una línea JSON por evento**
 con `ts`, `evento`, `estado`, `usuarioId` (o `anonimo`), `ip`, `metodo`, `recurso` y `motivo`.
 
-Tres eventos: `acceso_denegado`, `login_fallido` y `sesion_invalidada`. Se registran los 401
+Los eventos de denegación son `acceso_denegado`, `login_fallido` y `sesion_invalidada`. Se registran los 401
 del entry point, los 403 del access denied handler y los 404 por recurso ajeno del handler
 global. El `motivo` de un 403 es el que dio la política (`el endpoint exige el rol ATLETA`,
 `token CSRF invalido o ausente`).
+
+RF4 agrega `ejecucion_eliminada` (actor y UUID de ejecución) e
+`historico_ejecuciones_eliminado` (actor solamente). Ambos son eventos de operación exitosa
+y no incluyen cargas, repeticiones ni otros datos de la ejecución.
 
 **Nunca se loguean** contraseñas, cookies, tokens, cabeceras ni cuerpos de request. Del
 request solo salen el método y el path, sin query string. El email del admin tampoco se
@@ -356,7 +562,7 @@ registra al crearlo.
 
 | Dónde | Qué hace |
 |---|---|
-| `security/AuditorAcceso.java` | `denegado(...)`, `loginFallido(...)`, `sesionInvalidada(...)` |
+| `security/AuditorAcceso.java` | `denegado(...)`, `loginFallido(...)`, `sesionInvalidada(...)`, `ejecucionEliminada(...)`, `historicoEjecucionesEliminado(...)` |
 | `security/PuntoEntradaNoAutenticado.java` | 401 sin sesión |
 | `security/ManejadorAccesoDenegado.java` | 403 fuera de rol o CSRF inválido, con el motivo de la política |
 | `error/ManejadorGlobalErrores.java` | `noEncontrado(...)`: registra el 404 por recurso ajeno |
@@ -486,7 +692,7 @@ al servir por HTTPS.
 
 ## RS15 — Tests unitarios y de integración
 
-**181 tests** con JUnit 5, Spring Boot Test y MockMvc, concentrados en la lógica de negocio y
+**185 tests** con JUnit 5, Spring Boot Test y MockMvc, concentrados en la lógica de negocio y
 sobre todo en los controles de seguridad.
 
 | Clase | Tests | Qué cubre |
@@ -495,7 +701,7 @@ sobre todo en los controles de seguridad.
 | `security/PoliticaAccesoTest` | 5 | RS01, RS03, RS05: matriz por grupo de rol, auditoría, identidad |
 | `security/DefensaEnProfundidadTest` | 3 | RS01: segunda capa sin la regla de URL |
 | `web/AdminTest` | 20 | panel de admin, no crear admins, RS10 al eliminar |
-| `web/EjecucionesTest` | 18 | ejecuciones, validación de series, visibilidad |
+| `web/EjecucionesTest` | 22 | ejecuciones, validación, visibilidad y eliminación del historial |
 | `web/RutinasTest` | 16 | rutinas, IDOR, rutinas propias invisibles al entrenador |
 | `web/RegistroTest` | 14 | registro, mass assignment, no registrar admin |
 | `web/LoginSesionTest` | 15 | login, 401, logout, CSRF, RS12 |
@@ -614,25 +820,95 @@ BCrypt (~0,2 s por intento) y la política de contraseñas que descarta las más
 
 ## Base de seguridad general
 
+**Regla.** Si algo falla mientras se decide o se aplica la autorización (excepción, base
+caída, datos inconsistentes), el resultado es **denegar**: la request no continúa, no se
+ejecuta la lógica de negocio y no se devuelven datos parciales. RS14 define el *formato* de
+los errores; RS18 define su *efecto* sobre la autorización.
+
+**Falla → respuesta → auditoría**
+
+| # | Falla | Respuesta | Auditoría (`logs/auditoria.log`) | Dónde |
+|---|---|---|---|---|
+| 1 | `UsuarioRepository.findById` lanza una excepción en `FiltroSesionVigente` (base caída, SQLite bloqueado) | **503** `{"error":"El servicio no esta disponible en este momento"}`. La request se corta; no sigue con el principal viejo de la sesión | evento `fallo_cerrado`, estado 503, id del usuario, motivo `FiltroSesionVigente: DataAccessResourceFailureException` | `security/FiltroSesionVigente` |
+| 2 | La política de acceso lanza una excepción al evaluar (incluye rutas públicas y requests sin sesión) | **403** `{"error":"No tiene permisos para realizar esta accion"}` | evento `acceso_denegado`, estado 403, motivo `error al evaluar la politica (IllegalStateException)` | `security/PoliticaAcceso.exigir` |
+| 3 | Un servicio lanza una excepción | **500** `{"error":"Ocurrio un error inesperado"}`, sin cuerpo parcial | el detalle queda en el log de la aplicación (`LOG.error`); no es una denegación de autorización, así que no va a la auditoría | `error/ManejadorGlobalErrores.inesperado` |
+| 4 | JSON ilegible, parámetro faltante o UUID mal formado | **400** `{"error":"La solicitud no es valida"}`; el servicio no se ejecuta | — (RS14) | `ManejadorGlobalErrores.entradaInvalida` |
+| 5 | El cuerpo no pasa Bean Validation | **400** con el nombre de los campos, nunca el valor recibido | — (RS14) | `ManejadorGlobalErrores.validacion` |
+| 6 | Una excepción escapa de todo handler (por ejemplo, la lanza un filtro) y el contenedor reenvía a `/error` | **403** `{"error":"No tiene permisos para realizar esta accion"}`, JSON siempre, sin HTML ni stack trace | evento `acceso_denegado`, estado 403, **recurso original** y motivo `error interno no manejado (HTTP 500), denegado al reenviar a /error` | `ManejadorAccesoDenegado`, `AuditorAcceso` |
+| 7 | Request directa a `/error` | **403** igual que el punto 6 | `acceso_denegado` (regla `/error` DENEGADO) | `PoliticaAcceso` |
+
+En todos los casos el mensaje de la excepción **no sale por HTTP ni entra en la auditoría**:
+la auditoría guarda solo el nombre de la clase de la excepción (RS17). El detalle técnico
+queda en el log de la aplicación.
+
+**Cómo está implementado**
+
+- **Filtro** (`FiltroSesionVigente`): el `try/catch` cubre solo la recarga del usuario. Ante
+  cualquier `RuntimeException` limpia el contexto de seguridad, audita y responde 503. No
+  cubre `chain.doFilter`: lo que falle más abajo no es una falla de este filtro.
+- **Política** (`PoliticaAcceso.exigir`): envuelve a `evaluar`. Los `AccessDeniedException` y
+  `AuthenticationException` son decisiones (403 y 401) y siguen su camino; cualquier otra
+  excepción se convierte en `AccesoDenegadoPorPolitica`, o sea 403. Como lo usan los dos
+  puntos de aplicación de RS01 (filtro por URL e interceptor del handler), el fail closed
+  vale en los dos.
+
+**Decisiones**
+
+1. **Base no disponible en el filtro → 503, no 401.** La falla es del servidor, no del
+   cliente: un 401 haría que el SPA (`api/cliente.ts`) limpiara el estado y mandara al login,
+   y por eso la sesión **no se invalida**. Cuando la base vuelve, el mismo usuario sigue
+   logueado (`FallaCerradaTest.laSesionSobreviveALaFallaDeLaBase`). Lo que sí se descarta es
+   el contexto de seguridad de ese request.
+2. **`/error` queda DENEGADO (RS13), no se habilita para el forward del contenedor.** Es lo
+   que ya definía la política de SH-22. Medido con un servidor real: una excepción que
+   escapa de todo handler **vuelve como 403**, no como 500 ni como respuesta vacía: el
+   dispatch de tipo ERROR pasa por la regla `/error` de la política y se
+   deniega. Es fail closed y no filtra nada, así que se acepta. **Costo conocido:** un error
+   interno real se le muestra al cliente como "sin permisos". Se mitiga en la auditoría
+   (punto 6 de la tabla: recurso original y motivo "error interno no manejado") y en el log
+   de la aplicación, donde sí está el stack trace. Si se prefiriera devolver 500, habría que
+   permitir solo el dispatch `ERROR` hacia `/error` y servirlo con un `ErrorController`
+   propio (en una prueba previa a SH-22 funcionó; hoy habría que ajustar también el
+   interceptor). Cambia la regla de SH-22 y queda fuera de este issue.
+3. **Los errores que no son de autorización (500, 400) no se auditan como denegación.** La
+   auditoría es de autorización (RS12); un 500 de negocio deja rastro en el log de la
+   aplicación.
+
+**Tests** — `security/FallaCerradaTest` (8), `security/FallaCerradaRealTest` (4, con Tomcat
+embebido), `security/PoliticaAccesoFallaCerradaTest` (5)
+
+| Caso | Test |
+|---|---|
+| Base caída en el filtro → 503 genérico, el servicio no se invoca, auditado sin el mensaje de la excepción | `FallaCerradaTest.baseCaidaEnElFiltroCorta` |
+| La misma falla corta también una escritura | `FallaCerradaTest.baseCaidaCortaTambienLasEscrituras` |
+| La sesión sobrevive a una falla transitoria | `FallaCerradaTest.laSesionSobreviveALaFallaDeLaBase` |
+| La política lanza → 403, el servicio no se invoca, auditado | `FallaCerradaTest.laPoliticaQueFallaDenega` |
+| La política lanza → también se deniega una ruta pública sin sesión | `FallaCerradaTest.laPoliticaQueFallaDenegaHastaLoPublico` |
+| Un servicio lanza → 500 con el cuerpo genérico exacto | `FallaCerradaTest.elServicioQueFallaDa500Generico` |
+| JSON ilegible y validación fallida → 400, el servicio no se invoca | `FallaCerradaTest.jsonIlegibleDa400SinEjecutarNada`, `validacionFallidaDa400SinEjecutarNada` |
+| Excepción de un filtro → 403 JSON, sin stack trace ni HTML, con `Accept` json, html y `*/*` | `FallaCerradaRealTest.laExcepcionNoManejadaDaUnaRespuestaGenerica`, `laCausaNoSale` |
+| Esa excepción queda auditada con el recurso original | `FallaCerradaRealTest.elErrorNoManejadoSeAudita` |
+| `/error` pedido directamente → 403 | `FallaCerradaRealTest.errorDirectoEstaDenegado` |
+| La política no convierte en falla un 401/403 normal ni consulta la sesión en rutas públicas | `PoliticaAccesoFallaCerradaTest` |
+
+Los tests del filtro y de la política se verificaron quitando el `try/catch` a propósito: sin
+el fail closed fallan 6 de ellos (5 errores y 1 fallo).
+
+**Verificación manual.**
+
+- Con la app levantada, poner `data/sherpa.db` en solo lectura o borrarla **no** hace fallar
+  el filtro: una base abierta sigue pudiendo leerse. Lo que cambia es la escritura: probar un
+  `POST` autenticado (por ejemplo crear una rutina) y comprobar que devuelve el 500 genérico
+  y ningún dato. El 503 del filtro está cubierto solo por el test automático.
+- Con `curl -i http://localhost:8080/error` debe dar 403 con el cuerpo genérico.
+
+---
+
+## Base de seguridad general
+
 ### Mass assignment
 
-Tres barreras, en capas:
-
-1. **DTOs de entrada con lista blanca de campos.** Son records que solo declaran lo editable.
-   `RegistroRequest` y `CrearUsuarioAdminRequest` usan el enum **`RolRegistro`, que no
-   incluye `ADMIN`**: un body con `"rol":"ADMIN"` falla al deserializar y devuelve 400 sin
-   llegar al servicio. Es más fuerte que validar y rechazar, porque el valor no es ni
-   representable.
-2. **Jackson en modo estricto** (`fail-on-unknown-properties: true`): un body con un campo
-   que el DTO no declara (`id`, `passwordHash`, `origen`, `idAtleta`) devuelve 400 en lugar de
-   ignorarse en silencio.
-3. **`updatable = false` en la entidad** para `email`, `rol`, y todos los campos de `Rutina`,
-   `Ejecucion` y `SerieEjecutada`. Ni un bug en el servicio podría emitir un `UPDATE` sobre
-   esas columnas.
-
-La única escritura que existe sobre `entrenador_creador_id` es
-`RutinaRepository.soltarEntrenadorCreador`, usada al eliminar un entrenador para que el
-atleta conserve sus rutinas.
+Ver **RS06**: la defensa en capas contra mass assignment y la matriz de campos están ahí.
 
 ### Validación de entradas
 

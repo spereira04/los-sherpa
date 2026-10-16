@@ -8,10 +8,19 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpSession;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -435,6 +444,162 @@ class VinculacionTest extends TestIntegracion {
         mvc.perform(get("/api/entrenador/exatletas").session(sesion))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    // ------------------------------------------- RF3: unicidad bajo concurrencia
+
+    @Test
+    @DisplayName("dos aceptaciones simultaneas para el mismo atleta dejan un solo vinculo activo")
+    void aceptacionesSimultaneasDejanUnSoloVinculo() throws Exception {
+        var deBeto = crearSolicitudPendiente(atleta, entrenador);
+        var deDario = crearSolicitudPendiente(atleta, otroEntrenador);
+        MockHttpSession sesionBeto = iniciarSesion("beto@test.com");
+        MockHttpSession sesionDario = iniciarSesion("dario@test.com");
+
+        List<Integer> estados = enParalelo(
+                () -> aceptar(sesionBeto, deBeto.getId()),
+                () -> aceptar(sesionDario, deDario.getId()));
+
+        // Una acepta (204). La otra: 409 si vio el vinculo, 404 si su solicitud ya habia sido
+        // cancelada por la primera... pero nunca dos exitos ni un 500.
+        assertThat(estados).filteredOn(e -> e == 204).hasSize(1);
+        assertThat(estados).filteredOn(e -> e != 204).allMatch(e -> e == 409);
+        assertThat(vinculos.listarTodosDe(atleta.getId()))
+                .filteredOn(v -> v.estaActivo()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("dos solicitudes simultaneas iguales dejan una sola pendiente")
+    void solicitudesSimultaneasIgualesDejanUnaPendiente() throws Exception {
+        MockHttpSession sesion = iniciarSesion("ana@test.com");
+
+        List<Integer> estados = enParalelo(
+                () -> enviarSolicitud(sesion, entrenador.getId()).andReturn()
+                        .getResponse().getStatus(),
+                () -> enviarSolicitud(sesion, entrenador.getId()).andReturn()
+                        .getResponse().getStatus());
+
+        assertThat(estados).containsExactlyInAnyOrder(201, 409);
+        assertThat(solicitudes.listarPorAtletaYEstado(atleta.getId(), EstadoSolicitud.PENDIENTE))
+                .hasSize(1);
+    }
+
+    @Test
+    @DisplayName("la base rechaza un segundo vinculo activo del mismo atleta")
+    void laBaseRechazaSegundoVinculoActivo() {
+        crearVinculoActivo(entrenador, atleta);
+
+        assertThatThrownBy(() -> crearVinculoActivo(otroEntrenador, atleta))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("SQLITE_CONSTRAINT_UNIQUE");
+    }
+
+    @Test
+    @DisplayName("la base permite vinculos cerrados del mismo atleta (historial)")
+    void laBasePermiteHistorial() {
+        var anterior = crearVinculoActivo(entrenador, atleta);
+        anterior.cerrar(java.time.LocalDate.now());
+        vinculos.saveAndFlush(anterior);
+
+        crearVinculoActivo(otroEntrenador, atleta);
+
+        assertThat(vinculos.listarTodosDe(atleta.getId())).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("la base rechaza una segunda pendiente del mismo par, pero no si la anterior se resolvio")
+    void laBaseRechazaPendienteDuplicada() {
+        var primera = crearSolicitudPendiente(atleta, entrenador);
+
+        assertThatThrownBy(() -> crearSolicitudPendiente(atleta, entrenador))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("SQLITE_CONSTRAINT_UNIQUE");
+
+        primera.resolver(EstadoSolicitud.RECHAZADA);
+        solicitudes.saveAndFlush(primera);
+        crearSolicitudPendiente(atleta, entrenador);
+    }
+
+    @Test
+    @DisplayName("al aceptar, las demas pendientes del atleta quedan CANCELADAS y la otra puede ya no aceptar")
+    void laOtraSolicitudCanceladaNoSePuedeAceptar() throws Exception {
+        var deBeto = crearSolicitudPendiente(atleta, entrenador);
+        var deDario = crearSolicitudPendiente(atleta, otroEntrenador);
+
+        aceptar(iniciarSesion("beto@test.com"), deBeto.getId());
+
+        mvc.perform(post("/api/entrenador/solicitudes/" + deDario.getId() + "/aceptar")
+                        .with(csrf()).session(iniciarSesion("dario@test.com")))
+                .andExpect(status().isConflict());
+        assertThat(vinculos.listarActivosPorEntrenador(otroEntrenador.getId())).isEmpty();
+    }
+
+    // -------------------------------------------------------- RF3: flujo completo
+
+    @Test
+    @DisplayName("flujo completo: buscar, solicitar, aceptar, ver, desvincular y aparecer como exatleta")
+    void flujoCompleto() throws Exception {
+        MockHttpSession sesionAtleta = iniciarSesion("ana@test.com");
+        MockHttpSession sesionEntrenador = iniciarSesion("beto@test.com");
+
+        mvc.perform(get("/api/atleta/entrenadores").param("nombre", "lopez").session(sesionAtleta))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+        enviarSolicitud(sesionAtleta, entrenador.getId()).andExpect(status().isCreated());
+
+        mvc.perform(get("/api/entrenador/solicitudes").session(sesionEntrenador))
+                .andExpect(jsonPath("$.length()").value(1));
+        var pendiente = solicitudes.listarPorAtletaYEstado(
+                atleta.getId(), EstadoSolicitud.PENDIENTE).get(0);
+        assertThat(aceptar(sesionEntrenador, pendiente.getId())).isEqualTo(204);
+
+        mvc.perform(get("/api/atleta/entrenador").session(sesionAtleta))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/entrenador/atletas").session(sesionEntrenador))
+                .andExpect(jsonPath("$.length()").value(1));
+
+        mvc.perform(delete("/api/entrenador/atletas/" + atleta.getId() + "/vinculo")
+                        .with(csrf()).session(sesionEntrenador))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/entrenador/atletas").session(sesionEntrenador))
+                .andExpect(jsonPath("$.length()").value(0));
+        mvc.perform(get("/api/entrenador/exatletas").session(sesionEntrenador))
+                .andExpect(jsonPath("$.length()").value(1));
+        mvc.perform(get("/api/atleta/entrenador").session(sesionAtleta))
+                .andExpect(status().isNotFound());
+    }
+
+    private int aceptar(MockHttpSession sesion, UUID idSolicitud) throws Exception {
+        return mvc.perform(post("/api/entrenador/solicitudes/" + idSolicitud + "/aceptar")
+                        .with(csrf()).session(sesion))
+                .andReturn().getResponse().getStatus();
+    }
+
+    /** Lanza las dos tareas a la vez (mismo latch de arranque) y devuelve sus estados HTTP. */
+    private List<Integer> enParalelo(Callable<Integer> a, Callable<Integer> b) throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch listos = new CountDownLatch(2);
+        CountDownLatch largada = new CountDownLatch(1);
+        try {
+            List<Future<Integer>> futuros = new ArrayList<>();
+            for (Callable<Integer> tarea : List.of(a, b)) {
+                futuros.add(pool.submit(() -> {
+                    listos.countDown();
+                    largada.await();
+                    return tarea.call();
+                }));
+            }
+            listos.await();
+            largada.countDown();
+            List<Integer> estados = new ArrayList<>();
+            for (Future<Integer> f : futuros) {
+                estados.add(f.get(30, TimeUnit.SECONDS));
+            }
+            return estados;
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     private org.springframework.test.web.servlet.ResultActions enviarSolicitud(

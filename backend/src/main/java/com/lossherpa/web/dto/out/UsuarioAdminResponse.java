@@ -9,7 +9,8 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 /**
- * Usuario visto por el admin. Es el unico DTO que expone el email de otra persona, porque
+ * RS06: ficha completa para el admin (todo salvo el hash). Es el unico DTO que expone el
+ * email de otra persona, porque
  * el admin gestiona cuentas. RS07: sigue sin exponer el hash de la contrasena.
  */
 public record UsuarioAdminResponse(

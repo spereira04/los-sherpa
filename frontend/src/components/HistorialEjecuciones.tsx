@@ -8,12 +8,22 @@ export type RangoFechas = { desde: string; hasta: string }
  * Historial de ejecuciones con filtro por rango de fechas.
  * Lo usan el atleta (su historial) y el entrenador (el de su atleta activo).
  */
-export function HistorialEjecuciones({ titulo, ejecuciones, cargando, rango, onFiltrar }: {
+export function HistorialEjecuciones({
+  titulo,
+  ejecuciones,
+  cargando,
+  rango,
+  onFiltrar,
+  onEliminar,
+  eliminandoId,
+}: {
   titulo: string
   ejecuciones: Ejecucion[]
   cargando: boolean
   rango: RangoFechas
   onFiltrar: (rango: RangoFechas) => void
+  onEliminar?: (idEjecucion: string) => void
+  eliminandoId?: string | null
 }) {
   const [desde, setDesde] = useState(rango.desde)
   const [hasta, setHasta] = useState(rango.hasta)
@@ -52,6 +62,17 @@ export function HistorialEjecuciones({ titulo, ejecuciones, cargando, rango, onF
             <h3>
               {ejecucion.nombreRutina}{' '}
               <span className="ayuda">· {fechaCorta(ejecucion.fecha)}</span>
+              {onEliminar !== undefined && (
+                <button
+                  type="button"
+                  className="secundario"
+                  style={{ marginLeft: '0.75rem' }}
+                  disabled={eliminandoId !== null && eliminandoId !== undefined}
+                  onClick={() => onEliminar(ejecucion.id)}
+                >
+                  {eliminandoId === ejecucion.id ? 'Eliminando...' : 'Eliminar'}
+                </button>
+              )}
             </h3>
             <table>
               <thead>

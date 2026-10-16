@@ -55,6 +55,10 @@ public class ServicioUsuarios {
     }
 
     /**
+     * RS06: los campos especificos de cada rol no son intercambiables. El rol que se evalua es
+     * el del REGISTRO EDITADO, no el de quien edita: asi el admin tampoco puede ponerle peso a
+     * un entrenador.
+     *
      * Los campos especificos de cada rol no son intercambiables: un atleta que manda
      * aniosServicio o un entrenador que manda pesoKg recibe 400, no un silencio.
      */
