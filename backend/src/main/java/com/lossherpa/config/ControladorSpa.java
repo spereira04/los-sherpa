@@ -15,7 +15,8 @@ import org.springframework.web.bind.annotation.GetMapping;
  * del classpath en lugar de hacer forward: asi no depende del manejador de recursos y no
  * hay ninguna ruta que pueda resolver a algo distinto del index.
  *
- * No hay catch-all /**: cualquier otro path cae en anyRequest().denyAll() de SecurityConfig.
+ * No hay catch-all /**: cualquier otro path cae en DenegacionPorDefecto (RS02). Cada patron de
+ * aca tiene su regla GET en PoliticaAcceso; CoberturaControlAccesoTest falla si se separan.
  */
 @Controller
 public class ControladorSpa {

@@ -3,7 +3,9 @@ package com.lossherpa.service;
 import com.lossherpa.domain.Rol;
 import com.lossherpa.domain.Usuario;
 import com.lossherpa.error.ConflictoException;
+import com.lossherpa.error.CredencialesInvalidasException;
 import com.lossherpa.repository.UsuarioRepository;
+import com.lossherpa.security.UsuarioActual;
 import com.lossherpa.web.dto.in.RegistroRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -13,7 +15,10 @@ import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.List;
 
-/** Registro publico. El login lo resuelve el AuthenticationManager en el controlador. */
+/**
+ * Registro publico y usuario de la sesion. El login lo resuelve el AuthenticationManager en
+ * el controlador.
+ */
 @Service
 public class ServicioAutenticacion {
 
@@ -26,6 +31,17 @@ public class ServicioAutenticacion {
         this.usuarios = usuarios;
         this.passwordEncoder = passwordEncoder;
         this.politicaContrasena = politicaContrasena;
+    }
+
+    /**
+     * RS16: el usuario de la sesion actual, para /api/auth/yo y la respuesta del login. El
+     * id sale del SecurityContext (UsuarioActual), nunca del request. Si el usuario ya no
+     * existe se responde como credenciales invalidas (401).
+     */
+    @Transactional(readOnly = true)
+    public Usuario usuarioDeLaSesion() {
+        return usuarios.findById(UsuarioActual.id())
+                .orElseThrow(CredencialesInvalidasException::new);
     }
 
     @Transactional

@@ -6,27 +6,32 @@ lo cubren. En el código, cada punto está marcado con un comentario (`// RS04`,
 Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las de tests a
 `backend/src/test/java/com/lossherpa/`.
 
-**Estado de la suite: 192 tests, todos en verde** (`cd backend && ./mvnw test`).
+**Estado de la suite: 205 tests, todos en verde** (`cd backend && ./mvnw test`).
 
 ---
 
 ## Resumen
 
-| RS | Requisito | Estado |
-|---|---|---|
-| RS01 | Control de acceso centralizado (PEP) | ✅ |
-| RS02 | Deny by default para requests no contempladas | ✅ |
-| RS03 | Modelo híbrido RBAC + ABAC | ✅ |
-| RS04 | Control de acceso a nivel de dato (ASVS 8.2.2) | ✅ |
-| RS05 | Controles solo en el servidor | ✅ |
-| RS07 | No exposición de IDs | ✅ |
-| RS08 | ⚠️ Control por rol en el servidor (definición del Informe v1, a confirmar) | ✅ |
-| RS10 | Impacto inmediato de cambios de autorización (ASVS 8.3.2) | ✅ |
-| RS12 | Logs de autorización | ✅ |
-| RS13 | Deny by default, incluidos los estáticos | ✅ |
-| RS14 | Sin configuración por defecto | ✅ |
-| RS15 | Tests unitarios y de integración | ✅ |
-| RS17 | Protección de logs | ✅ |
+| RS | Requisito | Estado | Tests principales |
+|---|---|---|---|
+| RS01 | Control de acceso centralizado (PEP) | ✅ | `security/PoliticaAccesoTest`, `security/DefensaEnProfundidadTest` |
+| RS02 | Deny by default para requests no contempladas | ✅ | `web/DenegacionPorDefectoTest` |
+| RS03 | Modelo híbrido RBAC + ABAC | ✅ | `security/PoliticaAccesoTest`, tests ABAC de `web/RutinasTest`, `EjecucionesTest`, `VinculacionTest` |
+| RS04 | Control de acceso a nivel de dato (ASVS 8.2.2) | ✅ | ver RS04 |
+| RS05 | Controles solo en el servidor | ✅ | `security/PoliticaAccesoTest.ningunHandlerRecibeRolNiIdentidad`, `security/IdentidadDesdeLaSesionTest` |
+| RS06 | Control por campo / mass assignment (ASVS 8.2.3) | 🟡 parcial: barreras de la "Base de seguridad general"; matriz por campo pendiente (SH-27) | `web/RegistroTest`, `web/PerfilTest` |
+| RS07 | No exposición de IDs | ✅ | ver RS07 |
+| RS08 | ⚠️ Control por rol en el servidor (definición del Informe v1, a confirmar) | ✅ con esa definición | ver RS08 |
+| RS09 | ❔ Sin definición en el repo | a confirmar con el equipo | — |
+| RS10 | Impacto inmediato de cambios de autorización (ASVS 8.3.2) | ✅ | ver RS10 |
+| RS11 | Métricas financieras | no aplica: no hay facturación en esta versión | — |
+| RS12 | Logs de autorización | ✅ | ver RS12 |
+| RS13 | Deny by default, incluidos los estáticos | ✅ | `web/EstaticosTest` |
+| RS14 | Sin configuración por defecto | ✅ | ver RS14 |
+| RS15 | Tests unitarios y de integración | ✅ | 205 tests |
+| RS16 | Toda request pasa por el control de acceso | ✅ | `security/CoberturaControlAccesoTest`, `security/IdentidadDesdeLaSesionTest` |
+| RS17 | Protección de logs | ✅ | `security/SanitizadorLogTest` |
+| RS18 | Deny by default ante errores | ⏳ pendiente (SH-24); `/error` ya está denegado por la política (RS16) | — |
 
 ---
 
@@ -34,6 +39,9 @@ Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las
 
 **Fuente de verdad: `security/PoliticaAcceso.java`.** Esta tabla es la misma lista, una fila
 por endpoint (método + patrón exacto). Lo que no está acá se deniega (RS02).
+`security/CoberturaControlAccesoTest` falla si un handler real no tiene regla o si una regla
+no corresponde a ningún handler, así que la tabla y el código no se pueden separar sin
+romper el build.
 
 | Método | Path | Rol | Atributo (ABAC) | Denegación |
 |---|---|---|---|---|
@@ -113,7 +121,7 @@ tercera barrera.
 **Decisión: `AuthorizationManager` con política declarada (opción a), no `@PreAuthorize`.**
 Con `@PreAuthorize` el rol de cada operación quedaría repartido entre anotaciones en cada
 controlador y las reglas de URL. Con la tabla, el rol se escribe **una sola vez**, los dos
-PEP leen lo mismo y un test puede recorrerla directamente. La segunda capa decide sobre el
+PEP leen lo mismo y el test de RS16 la recorre directamente. La segunda capa decide sobre el
 handler y no sobre la URL, que es justamente lo que una regla de URL mal escrita no ve.
 
 **Decisión: la política lanza su propia excepción.** En Spring Security 6.3 el
@@ -136,6 +144,7 @@ vez falla es un bug de la configuración, y responde 403 auditado igual.
 | Sin la regla de URL de admin, el atleta igual recibe 403 de la segunda capa | `security/DefensaEnProfundidadTest.sinReglaDeUrlElAtletaIgualEsDenegado` |
 | Sin la regla de URL, sin sesión → 401 de la segunda capa | `security/DefensaEnProfundidadTest.sinReglaDeUrlSinSesionEs401` |
 | La segunda capa no le quita acceso al rol correcto | `security/DefensaEnProfundidadTest.elAdminSigueEntrando` |
+| Matriz completa regla × sesión | `security/CoberturaControlAccesoTest.matrizCompletaDeAcceso` (RS16) |
 
 ---
 
@@ -224,7 +233,7 @@ método no declarado, pero el manejador conviene corregirlo junto con el resto d
 | `ASIGNADA_POR_MI` | vínculo vigente + `origen = ASIGNADA` + `entrenadorCreador = :yo` | `RutinaRepository.listarAsignadasPorEntrenador`, `EjecucionRepository.listarAsignadasPorEntrenador` |
 | `GESTIONABLE` | el usuario no es ADMIN | `UsuarioRepository.buscarGestionablePorAdmin`, `buscarParaAdmin` |
 
-**Tests.** RBAC: `security/PoliticaAccesoTest`.
+**Tests.** RBAC: `security/PoliticaAccesoTest` y la matriz de `CoberturaControlAccesoTest`.
 ABAC (reutilizados, no duplicados): `web/VinculacionTest.noVeAtletaAjeno`,
 `noVeAtletaSinVinculo`, `elAtletaDesvinculaYElEntrenadorPierdeAcceso`;
 `web/RutinasTest.noVeRutinasDeAtletaAjeno`, `alDesvincularPierdeAccesoALasRutinas`;
@@ -327,17 +336,19 @@ intentar pedir otro recurso de ese exatleta.
   reconstruye **desde la base** en cada request, nunca de un parámetro, una cabecera ni de
   lo que el frontend cree que es el usuario.
 - Ningún handler recibe el rol, el id del usuario actual ni un flag del tipo `esAdmin`. Lo
-  verifica un test por reflexión sobre los handlers reales.
+  verifican dos tests por reflexión sobre los handlers reales.
 - El frontend solo adapta la experiencia (ver "El frontend no es un control de seguridad").
 
-Excepción justificada, declarada en el test: el parámetro `rol` de `GET /api/admin/usuarios`
-filtra a **otros** usuarios; el rol y la identidad del admin salen igual de la sesión.
+Excepciones justificadas, declaradas en los tests: en `/api/admin/**` el `idUsuario` y el
+`rol` son del usuario **gestionado** (no del admin), y en `POST /api/auth/registro` el `rol`
+es el de la cuenta nueva (`RolRegistro` no incluye `ADMIN`).
 
 **Tests**
 
 | Caso | Test |
 |---|---|
 | Ningún parámetro se llama `rol`, `esAdmin`, `idUsuarioActual`, … | `security/PoliticaAccesoTest.ningunHandlerRecibeRolNiIdentidad` |
+| Ningún parámetro ni campo de body representa al usuario actual | `security/IdentidadDesdeLaSesionTest.ningunDatoDelClienteEsLaIdentidad` |
 
 ---
 
@@ -552,14 +563,16 @@ al servir por HTTPS.
 
 ## RS15 — Tests unitarios y de integración
 
-**192 tests** con JUnit 5, Spring Boot Test y MockMvc, concentrados en la lógica de negocio y
+**205 tests** con JUnit 5, Spring Boot Test y MockMvc, concentrados en la lógica de negocio y
 sobre todo en los controles de seguridad.
 
 | Clase | Tests | Qué cubre |
 |---|---|---|
 | `web/VinculacionTest` | 29 | solicitudes, vínculos, IDOR, roles, RS10 |
 | `web/DenegacionPorDefectoTest` | 11 | RS02: requests no contempladas, firewall, CORS |
+| `security/CoberturaControlAccesoTest` | 9 | RS16: handlers ↔ política, matriz completa, `/error`, SPA |
 | `security/PoliticaAccesoTest` | 5 | RS01, RS03, RS05: matriz por grupo de rol, auditoría, identidad |
+| `security/IdentidadDesdeLaSesionTest` | 4 | RS16: identidad desde la sesión, controladores sin repositorios |
 | `security/DefensaEnProfundidadTest` | 3 | RS01: segunda capa sin la regla de URL |
 | `web/AdminTest` | 20 | panel de admin, no crear admins, RS10 al eliminar |
 | `web/EjecucionesTest` | 18 | ejecuciones, validación de series, visibilidad |
@@ -600,6 +613,86 @@ Infraestructura: `support/TestIntegracion.java` (base común, limpia la base en 
 | Las respuestas de error no exponen stack traces | `web/LoginSesionTest.lasRespuestasDeErrorNoTraenStackTrace`, `web/EstaticosTest.elErrorDeUnPathDenegadoEsGenerico` |
 | Un path estático no permitido no se sirve | `web/EstaticosTest.unPathNoPermitidoNoSeSirve`, `laConfiguracionNoSeSirve` |
 | Tests unitarios de la política de contraseñas y del cálculo de edad | `service/PoliticaContrasenaTest` (14), `service/CalculadoraEdadTest` (8) |
+
+---
+
+## RS16 — Toda petición pasa por el control de acceso
+
+**Cómo está implementado.** RS01 y RS02 hacen que toda request pase por la política. RS16 lo
+convierte en una garantía que **se verifica en cada build**: si alguien agrega un endpoint
+sin regla, deja una regla sin endpoint o hace que un controlador reciba la identidad del
+cliente, la suite falla con un mensaje que nombra método y path.
+
+1. **Cobertura** (`security/CoberturaControlAccesoTest`). `support/InspectorDeEndpoints`
+   recorre **todos** los `HandlerMapping` del contexto (controladores, recursos estáticos,
+   welcome page de Spring Boot, `BasicErrorController`) y falla si aparece un tipo de mapping
+   que no sabe leer. El test cruza esa lista con la política en los dos sentidos y después
+   ejecuta la matriz completa regla × {sin sesión, ATLETA, ENTRENADOR, ADMIN}: 401 sin sesión,
+   403 con un rol que no corresponde, ni 401 ni 403 con el que corresponde (400 o 404 por
+   datos ficticios es válido).
+2. **Identidad** (`security/IdentidadDesdeLaSesionTest`). Por reflexión sobre los handlers
+   reales: ningún parámetro de path, query, cabecera, cookie ni campo del body (incluidos
+   records anidados) representa al usuario actual (`rol`, `idUsuario`, `yo`, `esAdmin`, y
+   `idAtleta` dentro de `/api/atleta/**` o `idEntrenador` dentro de `/api/entrenador/**`);
+   ningún handler lee cabeceras ni cookies; ningún controlador accede a un repositorio.
+
+Los tres comportamientos que tienen que hacer fallar el build están **demostrados** en la
+propia suite con controladores que nunca se registran en la app (un `@GetMapping
+("/api/atleta/debug")` sin regla, una regla huérfana, un controlador que recibe `idAtleta`,
+lee una cabecera y usa un repositorio).
+
+Probado también a mano: comentar la regla `DELETE /api/atleta/vinculo` y agregar un
+`@GetMapping("/debug")` real en `AtletaRutinasController` hace fallar la suite con
+`DELETE /api/atleta/vinculo: endpoint sin regla en PoliticaAcceso (...AtletaVinculacionController#desvincular...)`
+y `GET /api/atleta/debug: endpoint sin regla en PoliticaAcceso (...)`.
+
+**Caminos no obvios**
+
+| Camino | Regla | Qué entrega |
+|---|---|---|
+| Forward del contenedor a `/error` | `* /error` → `DENEGADO`. La cadena de seguridad se aplica a todos los tipos de dispatch, incluido `ERROR` | 403 genérico, sin datos |
+| Rutas del SPA (`ControladorSpa`) | `GET` explícito por patrón | el mismo `index.html` para cualquiera, sin datos de usuario |
+| Estáticos (`/assets/**`, `/favicon.ico`) | `GET` explícito | solo archivos del build (RS13) |
+| Welcome page de Spring Boot (raíz `/`) | `GET /`. Existe aunque `add-mappings` está apagado; la tapa `ControladorSpa` | el mismo `index.html` |
+| Logout | lo atiende `LogoutFilter` antes de autorizar | 204, sin datos |
+
+**Hallazgo corregido.** `AuthController` usaba `UsuarioRepository` directamente (respuesta
+del login y `GET /api/auth/yo`). El id salía de la sesión, pero el controlador se salteaba
+la capa de servicios. Lo detectó `losControladoresNoAccedenARepositorios`; ahora pasa por
+`ServicioAutenticacion.usuarioDeLaSesion()`.
+
+**Endpoints de RF2, RF4 y RF7.** SH-36, SH-38 y SH-41 todavía no están en esta rama. El test
+no tiene una lista fija de endpoints: cuando se integren, la suite va a fallar hasta que
+cada endpoint nuevo tenga su regla en `PoliticaAcceso`, que es exactamente la garantía.
+
+**Decisión: reflexión, no ArchUnit.** La suite corre offline (`./mvnw -o`) y ArchUnit no está
+en el repositorio local de Maven; además las reglas necesitan el patrón de cada endpoint,
+que solo conoce el contexto de Spring. No se agregó ninguna dependencia. La regla opcional
+"los repositorios de recursos de usuario no exponen `findById` pelado" no se implementó:
+`JpaRepository` lo expone siempre y la convención 2 de RS04 se sigue sosteniendo por revisión.
+
+| Dónde | Qué hace |
+|---|---|
+| `test/.../support/InspectorDeEndpoints.java` | Lista los endpoints reales de todos los `HandlerMapping` |
+| `test/.../security/CoberturaControlAccesoTest.java` | Handlers ↔ política y matriz completa |
+| `test/.../security/IdentidadDesdeLaSesionTest.java` | Identidad desde la sesión y capas |
+| `service/ServicioAutenticacion.java` | `usuarioDeLaSesion()` (hallazgo) |
+
+**Tests**
+
+| Caso | Test |
+|---|---|
+| Se recorren todos los handlers, incluidos estáticos y `/error` | `CoberturaControlAccesoTest.seRecorrenTodosLosHandlers` |
+| Todo endpoint tiene regla | `CoberturaControlAccesoTest.todoEndpointTieneRegla` |
+| Ninguna regla huérfana | `CoberturaControlAccesoTest.ningunaReglaQuedaHuerfana` |
+| Demostración: endpoint sin regla / regla huérfana / regla quitada | `unEndpointSinReglaSeDetecta`, `unaReglaHuerfanaSeDetecta`, `quitarUnaReglaSeDetecta` |
+| Matriz completa regla × sesión | `CoberturaControlAccesoTest.matrizCompletaDeAcceso` |
+| El forward a `/error` pasa por la política | `CoberturaControlAccesoTest.elForwardAErrorPasaPorLaPolitica` |
+| El SPA no entrega datos | `CoberturaControlAccesoTest.lasRutasDelSpaNoEntreganDatos` |
+| La identidad nunca viene del cliente | `IdentidadDesdeLaSesionTest.ningunDatoDelClienteEsLaIdentidad` |
+| Ningún handler lee cabeceras ni cookies | `IdentidadDesdeLaSesionTest.ningunHandlerLeeCabecerasNiCookies` |
+| Los controladores no acceden a repositorios | `IdentidadDesdeLaSesionTest.losControladoresNoAccedenARepositorios` |
+| Demostración: controlador que confía en el cliente | `IdentidadDesdeLaSesionTest.unControladorQueRecibeLaIdentidadSeDetecta` |
 
 ---
 
