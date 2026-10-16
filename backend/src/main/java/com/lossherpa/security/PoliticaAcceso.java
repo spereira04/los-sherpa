@@ -134,6 +134,10 @@ public class PoliticaAcceso {
             new Regla(POST, "/api/atleta/rutinas/{idRutina}/ejecuciones", Acceso.ATLETA,
                     Atributo.DUENO),
             new Regla(GET, "/api/atleta/ejecuciones", Acceso.ATLETA, Atributo.DUENO),
+            // RF4 + RS04 + RS08: únicamente el rol ATLETA puede borrar su historial.
+            new Regla(DELETE, "/api/atleta/ejecuciones", Acceso.ATLETA, Atributo.DUENO),
+            new Regla(DELETE, "/api/atleta/ejecuciones/{idEjecucion}", Acceso.ATLETA,
+                    Atributo.DUENO),
             new Regla(GET, "/api/atleta/entrenadores", Acceso.ATLETA, Atributo.NINGUNO),
             new Regla(GET, "/api/atleta/solicitudes", Acceso.ATLETA, Atributo.DUENO),
             new Regla(POST, "/api/atleta/solicitudes", Acceso.ATLETA, Atributo.DUENO),
