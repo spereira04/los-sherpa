@@ -9,6 +9,7 @@ import com.lossherpa.error.RecursoNoEncontradoException;
 import com.lossherpa.error.ReglaNegocioException;
 import com.lossherpa.repository.EjecucionRepository;
 import com.lossherpa.repository.RutinaRepository;
+import com.lossherpa.security.AuditorAcceso;
 import com.lossherpa.security.UsuarioActual;
 import com.lossherpa.web.dto.in.RegistrarEjecucionRequest;
 import org.springframework.stereotype.Service;
@@ -25,7 +26,8 @@ import java.util.UUID;
 /**
  * Ejecuciones (historial de entrenamientos).
  *
- * Una rutina se puede completar muchas veces. Las ejecuciones no se editan ni se borran.
+ * Una rutina se puede completar muchas veces. RF4 permite al atleta borrar sus ejecuciones,
+ * pero no editarlas.
  *
  * RS04: registrar exige que la rutina sea del atleta autenticado, y leer el historial
  * filtra por el atleta autenticado o, para el entrenador, por las rutinas que el asigno con
@@ -38,14 +40,17 @@ public class ServicioEjecuciones {
     private final RutinaRepository rutinas;
     private final ServicioUsuarios servicioUsuarios;
     private final ServicioVinculacion servicioVinculacion;
+    private final AuditorAcceso auditor;
 
     public ServicioEjecuciones(EjecucionRepository ejecuciones, RutinaRepository rutinas,
                                ServicioUsuarios servicioUsuarios,
-                               ServicioVinculacion servicioVinculacion) {
+                               ServicioVinculacion servicioVinculacion,
+                               AuditorAcceso auditor) {
         this.ejecuciones = ejecuciones;
         this.rutinas = rutinas;
         this.servicioUsuarios = servicioUsuarios;
         this.servicioVinculacion = servicioVinculacion;
+        this.auditor = auditor;
     }
 
     /**
@@ -99,6 +104,24 @@ public class ServicioEjecuciones {
         }
 
         return ejecuciones.save(ejecucion);
+    }
+
+    /** RF4 + RS04 + RS08: solo el atleta dueño puede eliminar una ejecución. */
+    @Transactional
+    public void eliminar(UUID idEjecucion) {
+        Usuario atleta = servicioUsuarios.autenticadoConRol(Rol.ATLETA);
+        Ejecucion ejecucion = ejecuciones.buscarDeAtleta(idEjecucion, atleta.getId())
+                .orElseThrow(RecursoNoEncontradoException::generico);
+        ejecuciones.delete(ejecucion);
+        auditor.ejecucionEliminada(atleta.getId(), ejecucion.getId());
+    }
+
+    /** RF4 + RS04: elimina exclusivamente el histórico del atleta autenticado. */
+    @Transactional
+    public void eliminarTodoMiHistorial() {
+        Usuario atleta = servicioUsuarios.autenticadoConRol(Rol.ATLETA);
+        ejecuciones.deleteAll(ejecuciones.listarTodasDelAtleta(atleta.getId()));
+        auditor.historicoEjecucionesEliminado(atleta.getId());
     }
 
     @Transactional(readOnly = true)

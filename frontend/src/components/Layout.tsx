@@ -1,6 +1,8 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import type { Rol } from '../api/cliente'
+import { api } from '../api/cliente'
 import { useSesion } from '../auth/SesionContext'
+import type { Tema } from '../tema'
 
 const MENUS: Record<Rol, { a: string; texto: string }[]> = {
   ENTRENADOR: [
@@ -21,12 +23,23 @@ const MENUS: Record<Rol, { a: string; texto: string }[]> = {
  * aplica el backend en cada request.
  */
 export function Layout() {
-  const { sesion, salir } = useSesion()
+  const { sesion, salir, refrescar } = useSesion()
   const navegar = useNavigate()
 
   async function cerrarSesion() {
     await salir()
     navegar('/login', { replace: true })
+  }
+
+  // RF7: la fuente de verdad es el perfil; al guardar se vuelve a pedir la sesion y
+  // SesionContext aplica el atributo en <html>.
+  async function cambiarTema(tema: Tema) {
+    try {
+      await api.actualizar('/api/perfil/preferencias', { tema })
+      await refrescar()
+    } catch {
+      // Si falla, el selector queda con el tema vigente de la sesion.
+    }
   }
 
   return (
@@ -48,6 +61,18 @@ export function Layout() {
         )}
         {sesion !== null && (
           <div className="usuario">
+            <label className="selector-tema">
+              <span className="campo-etiqueta">Tema</span>
+              <select
+                aria-label="Tema"
+                value={sesion.tema}
+                onChange={(e) => void cambiarTema(e.target.value as Tema)}
+              >
+                <option value="SISTEMA">Sistema</option>
+                <option value="CLARO">Claro</option>
+                <option value="OSCURO">Oscuro</option>
+              </select>
+            </label>
             <span>
               {sesion.nombre} {sesion.apellido}
             </span>

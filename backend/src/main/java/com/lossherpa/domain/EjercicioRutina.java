@@ -31,25 +31,46 @@ public class EjercicioRutina {
     @Column(nullable = false, updatable = false)
     private int orden;
 
-    @Column(nullable = false, updatable = false, length = 120)
+    @Column(nullable = false, length = 120)
     private String nombre;
 
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = false)
     private int series;
 
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = false)
     private int repeticiones;
+
+    @Column(length = 500)
+    private String observaciones;
 
     protected EjercicioRutina() {
         // requerido por JPA
     }
 
-    EjercicioRutina(Rutina rutina, int orden, String nombre, int series, int repeticiones) {
+    public EjercicioRutina(Rutina rutina, int orden, String nombre, int series, int repeticiones) {
+        this(rutina, orden, nombre, series, repeticiones, null);
+    }
+
+    public EjercicioRutina(Rutina rutina, int orden, String nombre, int series, int repeticiones,
+                          String observaciones) {
         this.rutina = rutina;
         this.orden = orden;
         this.nombre = nombre;
         this.series = series;
         this.repeticiones = repeticiones;
+        this.observaciones = observaciones == null ? null : observaciones.trim();
+    }
+
+    public void asignarRutina(Rutina rutina, int orden) {
+        this.rutina = rutina;
+        this.orden = orden;
+    }
+
+    public void actualizar(String nombre, int series, int repeticiones, String observaciones) {
+        this.nombre = nombre;
+        this.series = series;
+        this.repeticiones = repeticiones;
+        this.observaciones = observaciones == null ? null : observaciones.trim();
     }
 
     public UUID getId() {
@@ -74,5 +95,9 @@ public class EjercicioRutina {
 
     public int getRepeticiones() {
         return repeticiones;
+    }
+
+    public String getObservaciones() {
+        return observaciones;
     }
 }

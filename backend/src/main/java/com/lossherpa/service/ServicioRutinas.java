@@ -1,11 +1,16 @@
 package com.lossherpa.service;
 
+import com.lossherpa.domain.EjercicioRutina;
 import com.lossherpa.domain.Rol;
 import com.lossherpa.domain.Rutina;
 import com.lossherpa.domain.Usuario;
+import com.lossherpa.error.ConflictoException;
 import com.lossherpa.error.RecursoNoEncontradoException;
+import com.lossherpa.error.ReglaNegocioException;
+import com.lossherpa.repository.EjecucionRepository;
 import com.lossherpa.repository.RutinaRepository;
 import com.lossherpa.security.UsuarioActual;
+import com.lossherpa.web.dto.in.ActualizarRutinaRequest;
 import com.lossherpa.web.dto.in.CrearRutinaRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,12 +33,15 @@ import java.util.UUID;
 public class ServicioRutinas {
 
     private final RutinaRepository rutinas;
+    private final EjecucionRepository ejecuciones;
     private final ServicioUsuarios servicioUsuarios;
     private final ServicioVinculacion servicioVinculacion;
 
-    public ServicioRutinas(RutinaRepository rutinas, ServicioUsuarios servicioUsuarios,
+    public ServicioRutinas(RutinaRepository rutinas, EjecucionRepository ejecuciones,
+                           ServicioUsuarios servicioUsuarios,
                            ServicioVinculacion servicioVinculacion) {
         this.rutinas = rutinas;
+        this.ejecuciones = ejecuciones;
         this.servicioUsuarios = servicioUsuarios;
         this.servicioVinculacion = servicioVinculacion;
     }
@@ -84,9 +92,53 @@ public class ServicioRutinas {
                 Rutina.asignada(datos.nombre().trim(), atleta, entrenador), datos));
     }
 
+    @Transactional
+    public Rutina actualizarAsignada(UUID idAtleta, UUID idRutina,
+                                   ActualizarRutinaRequest datos) {
+        Usuario entrenador = servicioUsuarios.autenticadoConRol(Rol.ENTRENADOR);
+        Rutina rutina = rutinas.buscarAsignadaDeEntrenador(idRutina, entrenador.getId())
+                .orElseThrow(RecursoNoEncontradoException::generico);
+
+        if (!rutina.getAtleta().getId().equals(idAtleta)) {
+            throw new RecursoNoEncontradoException("La rutina no pertenece a ese atleta");
+        }
+        if (datos.tieneCamposNoPermitidos()) {
+            throw new ReglaNegocioException(
+                    "Los campos de autorizacion no son editables en la rutina");
+        }
+        if (rutina.archivada()) {
+            throw new RecursoNoEncontradoException("La rutina ya no existe o fue archivada");
+        }
+        if (ejecuciones.existsByRutinaId(rutina.getId())) {
+            throw new ConflictoException(
+                    "No se puede modificar una rutina con historial de ejecuciones");
+        }
+
+        rutina.cambiarNombre(datos.nombre().trim());
+        rutina.reemplazarEjercicios(datos.ejercicios().stream()
+                .map(ejercicio -> new EjercicioRutina(rutina, 0, ejercicio.nombre().trim(),
+                        ejercicio.series(), ejercicio.repeticiones(),
+                        ejercicio.observaciones() == null ? null : ejercicio.observaciones().trim()))
+                .toList());
+        return rutina;
+    }
+
+    @Transactional
+    public void eliminarAsignada(UUID idAtleta, UUID idRutina) {
+        Usuario entrenador = servicioUsuarios.autenticadoConRol(Rol.ENTRENADOR);
+        Rutina rutina = rutinas.buscarAsignadaDeEntrenador(idRutina, entrenador.getId())
+                .orElseThrow(RecursoNoEncontradoException::generico);
+
+        if (!rutina.getAtleta().getId().equals(idAtleta)) {
+            throw new RecursoNoEncontradoException("La rutina no pertenece a ese atleta");
+        }
+        rutina.archivar();
+    }
+
     private Rutina armar(Rutina rutina, CrearRutinaRequest datos) {
         datos.ejercicios().forEach(ejercicio -> rutina.agregarEjercicio(
-                ejercicio.nombre().trim(), ejercicio.series(), ejercicio.repeticiones()));
+                ejercicio.nombre().trim(), ejercicio.series(), ejercicio.repeticiones(),
+                ejercicio.observaciones() == null ? null : ejercicio.observaciones().trim()));
         return rutina;
     }
 }

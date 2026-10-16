@@ -10,7 +10,45 @@
   --error: #a4262c;
   --error-suave: #fdeaea;
   --ok: #1f6f54;
+  --info-suave: #eef2f7;
+  --sobre-acento: #ffffff;
   --radio: 8px;
+  color-scheme: light;
+}
+
+/* RF7: tema oscuro. Se activa con data-tema="oscuro" o, sin eleccion explicita
+   (data-tema="sistema" o ausente), segun la preferencia del sistema operativo. */
+:root[data-tema="oscuro"] {
+  --fondo: #14181f;
+  --superficie: #1d232d;
+  --borde: #343c4a;
+  --texto: #e8ecf2;
+  --texto-suave: #a3adbd;
+  --acento: #4cc59a;
+  --acento-suave: #1f3a31;
+  --error: #ff8a8f;
+  --error-suave: #43232a;
+  --ok: #4cc59a;
+  --info-suave: #252d3a;
+  --sobre-acento: #0d1a15;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]):not([data-tema="oscuro"]) {
+    --fondo: #14181f;
+    --superficie: #1d232d;
+    --borde: #343c4a;
+    --texto: #e8ecf2;
+    --texto-suave: #a3adbd;
+    --acento: #4cc59a;
+    --acento-suave: #1f3a31;
+    --error: #ff8a8f;
+    --error-suave: #43232a;
+    --ok: #4cc59a;
+    --info-suave: #252d3a;
+    --sobre-acento: #0d1a15;
+    color-scheme: dark;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -88,7 +126,7 @@ button {
   border-radius: 6px;
   border: 1px solid var(--acento);
   background: var(--acento);
-  color: #fff;
+  color: var(--sobre-acento);
   cursor: pointer;
 }
 button:hover:not(:disabled) { filter: brightness(1.08); }
@@ -127,7 +165,12 @@ td.acciones button { margin-left: 0.4rem; }
 .aviso { padding: 0.6rem 0.75rem; border-radius: 6px; margin: 0 0 1rem; }
 .aviso-error { background: var(--error-suave); color: var(--error); }
 .aviso-ok { background: var(--acento-suave); color: var(--ok); }
-.aviso-info { background: #eef2f7; color: var(--texto-suave); }
+.aviso-info { background: var(--info-suave); color: var(--texto-suave); }
 
 .cargando, .vacio { color: var(--texto-suave); }
 .ayuda { color: var(--texto-suave); font-size: 0.85rem; }
+
+/* --- selector de tema (RF7) --- */
+.selector-tema { display: flex; align-items: center; gap: 0.4rem; margin: 0; }
+.selector-tema select { width: auto; padding: 0.2rem 0.4rem; }
+.selector-tema .campo-etiqueta { margin: 0; }
