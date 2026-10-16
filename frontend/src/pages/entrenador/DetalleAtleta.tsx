@@ -31,6 +31,7 @@ export function DetalleAtleta() {
   )
 
   const [creando, setCreando] = useState(false)
+  const [rutinaEditando, setRutinaEditando] = useState<Rutina | null>(null)
   const [errorCrear, setErrorCrear] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
@@ -46,6 +47,39 @@ export function DetalleAtleta() {
       setErrorCrear(mensajeDe(e))
     } finally {
       setEnviando(false)
+    }
+  }
+
+  async function guardarRutinaEditada(nombre: string, ejercicios: EjercicioNuevo[]) {
+    if (rutinaEditando === null) {
+      return
+    }
+    setEnviando(true)
+    setErrorCrear(null)
+    try {
+      await api.actualizar(`/api/entrenador/atletas/${idAtleta}/rutinas/${rutinaEditando.id}`, {
+        nombre,
+        ejercicios,
+      })
+      setRutinaEditando(null)
+      await rutinas.recargar()
+    } catch (e) {
+      setErrorCrear(mensajeDe(e))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  async function eliminarRutina(rutina: Rutina) {
+    if (!window.confirm(`¿Eliminar la rutina "${rutina.nombre}"?`)) {
+      return
+    }
+    setErrorAccion(null)
+    try {
+      await api.borrar(`/api/entrenador/atletas/${idAtleta}/rutinas/${rutina.id}`)
+      await rutinas.recargar()
+    } catch (e) {
+      setErrorAccion(mensajeDe(e))
     }
   }
 
@@ -108,28 +142,58 @@ export function DetalleAtleta() {
         ) : (
           (rutinas.datos ?? []).map((rutina) => (
             <div key={rutina.id} style={{ marginBottom: '1rem' }}>
-              <h3>
-                {rutina.nombre}{' '}
-                <span className="ayuda">· creada el {fechaCorta(rutina.creadaEn)}</span>
-              </h3>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Ejercicio</th>
-                    <th>Series</th>
-                    <th>Repeticiones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rutina.ejercicios.map((ejercicio) => (
-                    <tr key={ejercicio.id}>
-                      <td>{ejercicio.nombre}</td>
-                      <td>{ejercicio.series}</td>
-                      <td>{ejercicio.repeticiones}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {rutinaEditando?.id === rutina.id && (
+                <FormularioRutina
+                  valorInicial={{
+                    nombre: rutina.nombre,
+                    ejercicios: rutina.ejercicios.map((ejercicio) => ({
+                      nombre: ejercicio.nombre,
+                      series: ejercicio.series,
+                      repeticiones: ejercicio.repeticiones,
+                      observaciones: ejercicio.observaciones ?? '',
+                    })),
+                  }}
+                  onGuardar={guardarRutinaEditada}
+                  enviando={enviando}
+                  error={errorCrear}
+                  textoBoton="Guardar cambios"
+                />
+              )}
+              {rutinaEditando?.id !== rutina.id && (
+                <>
+                  <h3>
+                    {rutina.nombre}{' '}
+                    <span className="ayuda">· creada el {fechaCorta(rutina.creadaEn)}</span>
+                  </h3>
+                  {rutina.observaciones && <p>{rutina.observaciones}</p>}
+                  <div className="fila" style={{ marginBottom: '0.75rem' }}>
+                    <button type="button" onClick={() => setRutinaEditando(rutina)}>Editar</button>
+                    <button type="button" className="peligro" onClick={() => void eliminarRutina(rutina)}>
+                      Eliminar
+                    </button>
+                  </div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Ejercicio</th>
+                        <th>Series</th>
+                        <th>Repeticiones</th>
+                        <th>Observaciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rutina.ejercicios.map((ejercicio) => (
+                        <tr key={ejercicio.id}>
+                          <td>{ejercicio.nombre}</td>
+                          <td>{ejercicio.series}</td>
+                          <td>{ejercicio.repeticiones}</td>
+                          <td>{ejercicio.observaciones ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
             </div>
           ))
         )}

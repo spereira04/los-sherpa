@@ -65,6 +65,8 @@ por endpoint (método + patrón exacto). Lo que no está acá se deniega
 | DELETE | `/api/entrenador/atletas/{idAtleta}/vinculo` | ENTRENADOR | vínculo vigente | 401 sin sesión · 403 otro rol · 404 sin relación |
 | GET | `/api/entrenador/atletas/{idAtleta}/rutinas` | ENTRENADOR | vínculo vigente + asignada por mí | 401 sin sesión · 403 otro rol · 404 sin relación |
 | POST | `/api/entrenador/atletas/{idAtleta}/rutinas` | ENTRENADOR | vínculo vigente | 401 sin sesión · 403 otro rol · 404 sin relación |
+| PUT | `/api/entrenador/atletas/{idAtleta}/rutinas/{idRutina}` | ENTRENADOR | vínculo vigente + asignada por mí | 401 sin sesión · 403 otro rol · 404 sin relación |
+| DELETE | `/api/entrenador/atletas/{idAtleta}/rutinas/{idRutina}` | ENTRENADOR | vínculo vigente + asignada por mí | 401 sin sesión · 403 otro rol · 404 sin relación |
 | GET | `/api/entrenador/atletas/{idAtleta}/ejecuciones` | ENTRENADOR | vínculo vigente + asignada por mí | 401 sin sesión · 403 otro rol · 404 sin relación |
 | GET | `/api/admin/usuarios` | ADMIN | gestionable (no ADMIN) | 401 sin sesión · 403 otro rol · 404 sin relación |
 | POST | `/api/admin/usuarios` | ADMIN | — | 401 sin sesión · 403 otro rol |

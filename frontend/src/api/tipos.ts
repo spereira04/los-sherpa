@@ -68,11 +68,13 @@ export type EjercicioRutina = {
   nombre: string
   series: number
   repeticiones: number
+  observaciones?: string
 }
 
 export type Rutina = {
   id: string
   nombre: string
+  observaciones?: string
   origen: OrigenRutina
   creadaEn: string
   creadaPor?: string
