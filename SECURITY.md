@@ -6,7 +6,7 @@ lo cubren. En el código, cada punto está marcado con un comentario (`// RS04`,
 Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las de tests a
 `backend/src/test/java/com/lossherpa/`.
 
-**Estado de la suite: 181 tests, todos en verde** (`cd backend && ./mvnw test`).
+**Estado de la suite: 185 tests, todos en verde** (`cd backend && ./mvnw test`).
 
 ---
 
@@ -19,7 +19,7 @@ Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las
 | RS04 | Control de acceso a nivel de dato (ASVS 8.2.2) | ✅ |
 | RS05 | Controles solo en el servidor | ✅ |
 | RS07 | No exposición de IDs | ✅ |
-| RS08 | ⚠️ Control por rol en el servidor (definición del Informe v1, a confirmar) | ✅ |
+| RS08 | Control por rol en el servidor (definición aplicada del Informe v1) | ✅ |
 | RS10 | Impacto inmediato de cambios de autorización (ASVS 8.3.2) | ✅ |
 | RS12 | Logs de autorización | ✅ |
 | RS13 | Deny by default, incluidos los estáticos | ✅ |
@@ -48,6 +48,8 @@ por endpoint (método + patrón exacto). Lo que no está acá se deniega
 | POST | `/api/atleta/rutinas` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
 | POST | `/api/atleta/rutinas/{idRutina}/ejecuciones` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
 | GET | `/api/atleta/ejecuciones` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
+| DELETE | `/api/atleta/ejecuciones/{idEjecucion}` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 ajena/inexistente |
+| DELETE | `/api/atleta/ejecuciones` | ATLETA | dueño | 401 sin sesión · 403 otro rol |
 | GET | `/api/atleta/entrenadores` | ATLETA | — | 401 sin sesión · 403 otro rol |
 | GET | `/api/atleta/solicitudes` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
 | POST | `/api/atleta/solicitudes` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
@@ -154,7 +156,7 @@ vez falla es un bug de la configuración, y responde 403 auditado igual.
 | Atributo | Predicado | Dónde se aplica |
 |---|---|---|
 | `PROPIO` | el recurso es el usuario de la sesión | `UsuarioActual.id()` en `ServicioUsuarios`, `ServicioPerfil`, `ServicioAutenticacion` |
-| `DUENO` | `atleta.id = :yo` (o `entrenador.id = :yo` en sus vínculos finalizados) | `RutinaRepository.buscarDeAtleta`, `listarPorAtleta`; `EjecucionRepository.listarPorAtleta`; `SolicitudVinculacionRepository.buscarDeAtleta`; `VinculoRepository.listarFinalizadosPorEntrenador` |
+| `DUENO` | `atleta.id = :yo` (o `entrenador.id = :yo` en sus vínculos finalizados) | `RutinaRepository.buscarDeAtleta`, `listarPorAtleta`; `EjecucionRepository.buscarDeAtleta`, `listarPorAtleta`; `SolicitudVinculacionRepository.buscarDeAtleta`; `VinculoRepository.listarFinalizadosPorEntrenador` |
 | `DESTINATARIO` | la solicitud está dirigida al entrenador de la sesión | `SolicitudVinculacionRepository.buscarDeEntrenador` |
 | `VINCULO_VIGENTE` | vínculo entrenador↔atleta con `fechaFin is null` | `VinculoRepository.buscarActivoPorEntrenadorYAtleta`, `ServicioVinculacion.vinculoActivoCon` |
 | `ASIGNADA_POR_MI` | vínculo vigente + `origen = ASIGNADA` + `entrenadorCreador = :yo` | `RutinaRepository.listarAsignadasPorEntrenador`, `EjecucionRepository.listarAsignadasPorEntrenador` |
@@ -185,11 +187,11 @@ que alguien pueda olvidar.
 | `security/UsuarioActual.java` | Única fuente del id autenticado (`id()`, `rol()`) |
 | `service/ServicioUsuarios.java` | `autenticado()`, `autenticadoConRol(...)` |
 | `repository/RutinaRepository.java` | `buscarDeAtleta`, `listarPorAtleta`, `listarAsignadasPorEntrenador`, `buscarAsignadaDeEntrenador` |
-| `repository/EjecucionRepository.java` | `listarPorAtleta`, `listarAsignadasPorEntrenador` |
+| `repository/EjecucionRepository.java` | `buscarDeAtleta`, `listarPorAtleta`, `listarAsignadasPorEntrenador` |
 | `repository/SolicitudVinculacionRepository.java` | `buscarDeAtleta`, `buscarDeEntrenador` |
 | `repository/VinculoRepository.java` | `buscarActivoPorAtleta`, `buscarActivoPorEntrenadorYAtleta` |
 | `service/ServicioVinculacion.java` | `vinculoActivoCon(...)`: punto único donde el entrenador prueba su relación vigente |
-| `service/ServicioEjecuciones.java` | `registrar(...)`: los `idEjercicio` del cliente se validan contra los ejercicios de **esa** rutina |
+| `service/ServicioEjecuciones.java` | `registrar(...)`: los `idEjercicio` del cliente se validan contra los ejercicios de **esa** rutina; `eliminar(...)` y `eliminarTodoMiHistorial()` borran solo datos del atleta autenticado |
 | `repository/UsuarioRepository.java` | `buscarGestionablePorAdmin`: excluye a los ADMIN en el `where` |
 
 **Decisión: la denegación a nivel de dato devuelve 404, no 403.** Un 403 confirmaría que el
@@ -211,6 +213,9 @@ auditoría con el motivo real (ver RS12).
 | Entrenador acepta una solicitud dirigida a otro | `web/VinculacionTest.noPuedeAceptarSolicitudAjena` |
 | Entrenador desvincula a un atleta ajeno | `web/VinculacionTest.noPuedeDesvincularAtletaAjeno` |
 | Historial de ejecuciones de otro usuario | `web/EjecucionesTest.elHistorialNoFiltraDeOtros` |
+| Atleta borra una ejecución propia; ya no aparece para atleta ni entrenador | `web/EjecucionesTest.eliminaSuEjecucion` |
+| Atleta intenta borrar ejecución ajena y recibe 404 auditado | `web/EjecucionesTest.noEliminaEjecucionAjena` |
+| Borrado total solo afecta el historial del atleta autenticado | `web/EjecucionesTest.eliminaTodoSuHistorialSinAfectarAOtros` |
 | Serie de un ejercicio de otra rutina | `web/EjecucionesTest.serieDeOtraRutinaSeRechaza` |
 | Solicitud en nombre de otro atleta | `web/VinculacionTest.noSePuedeSolicitarEnNombreDeOtro` |
 | Historial de exatletas de otro entrenador | `web/VinculacionTest.elHistorialEsPropio` |
@@ -277,18 +282,21 @@ filtra a **otros** usuarios; el rol y la identidad del admin salen igual de la s
 
 ---
 
-## RS08 — ⚠️ Definición a confirmar con el equipo
+## RS08 — Definición aplicada
 
-**Definición aplicada: la del Informe v1**, que agrupa RS01, RS03, RS05 y RS08 bajo
+Se adopta la definición del Informe v1, que agrupa RS01, RS03, RS05 y RS08 bajo
 "control de acceso por rol en el servidor" (amenaza A2). Con esa definición, RS08 queda
 cubierto por la política central (RS01), el modelo RBAC + ABAC (RS03) y los controles solo
 en el servidor (RS05). En el código se marca junto con ellos en `PoliticaAcceso`.
 
-**Definición alternativa** ("Corrección Requerimientos", numeración vieja): control de
-acceso **basado en estado**, por ejemplo rechazar con 409 cualquier cambio sobre una sesión
-de entrenamiento que ya no está "en curso". **No está implementada**: hoy `Ejecucion` se crea
-finalizada en un solo POST y no tiene estado. Si el equipo confirma esta definición, se
-implementa junto con SH-38 (RF4), que es el que introduce el ciclo de vida de la ejecución.
+RF4 conserva el registro final en un único POST; no introduce estados `EN_CURSO` /
+`FINALIZADA` ni `@Version`, porque eso pertenece a la definición alternativa (numeración vieja)
+de RS08 y contradice la definición aplicada. Las repeticiones siguen siendo las planificadas
+en la rutina; RF4 registra la carga real por serie y no agrega repeticiones realizadas.
+
+RF4 permite que el atleta elimine una ejecución propia o todo su histórico. El borrado total
+afecta únicamente al atleta autenticado y exige confirmación explícita en la interfaz. La
+eliminación queda registrada en auditoría sin incluir datos de las series.
 
 ---
 
@@ -345,10 +353,14 @@ garantía.
 **Cómo está implementado.** `security/AuditorAcceso.java` emite **una línea JSON por evento**
 con `ts`, `evento`, `estado`, `usuarioId` (o `anonimo`), `ip`, `metodo`, `recurso` y `motivo`.
 
-Tres eventos: `acceso_denegado`, `login_fallido` y `sesion_invalidada`. Se registran los 401
+Los eventos de denegación son `acceso_denegado`, `login_fallido` y `sesion_invalidada`. Se registran los 401
 del entry point, los 403 del access denied handler y los 404 por recurso ajeno del handler
 global. El `motivo` de un 403 es el que dio la política (`el endpoint exige el rol ATLETA`,
 `token CSRF invalido o ausente`).
+
+RF4 agrega `ejecucion_eliminada` (actor y UUID de ejecución) e
+`historico_ejecuciones_eliminado` (actor solamente). Ambos son eventos de operación exitosa
+y no incluyen cargas, repeticiones ni otros datos de la ejecución.
 
 **Nunca se loguean** contraseñas, cookies, tokens, cabeceras ni cuerpos de request. Del
 request solo salen el método y el path, sin query string. El email del admin tampoco se
@@ -356,7 +368,7 @@ registra al crearlo.
 
 | Dónde | Qué hace |
 |---|---|
-| `security/AuditorAcceso.java` | `denegado(...)`, `loginFallido(...)`, `sesionInvalidada(...)` |
+| `security/AuditorAcceso.java` | `denegado(...)`, `loginFallido(...)`, `sesionInvalidada(...)`, `ejecucionEliminada(...)`, `historicoEjecucionesEliminado(...)` |
 | `security/PuntoEntradaNoAutenticado.java` | 401 sin sesión |
 | `security/ManejadorAccesoDenegado.java` | 403 fuera de rol o CSRF inválido, con el motivo de la política |
 | `error/ManejadorGlobalErrores.java` | `noEncontrado(...)`: registra el 404 por recurso ajeno |
@@ -486,7 +498,7 @@ al servir por HTTPS.
 
 ## RS15 — Tests unitarios y de integración
 
-**181 tests** con JUnit 5, Spring Boot Test y MockMvc, concentrados en la lógica de negocio y
+**185 tests** con JUnit 5, Spring Boot Test y MockMvc, concentrados en la lógica de negocio y
 sobre todo en los controles de seguridad.
 
 | Clase | Tests | Qué cubre |
@@ -495,7 +507,7 @@ sobre todo en los controles de seguridad.
 | `security/PoliticaAccesoTest` | 5 | RS01, RS03, RS05: matriz por grupo de rol, auditoría, identidad |
 | `security/DefensaEnProfundidadTest` | 3 | RS01: segunda capa sin la regla de URL |
 | `web/AdminTest` | 20 | panel de admin, no crear admins, RS10 al eliminar |
-| `web/EjecucionesTest` | 18 | ejecuciones, validación de series, visibilidad |
+| `web/EjecucionesTest` | 22 | ejecuciones, validación, visibilidad y eliminación del historial |
 | `web/RutinasTest` | 16 | rutinas, IDOR, rutinas propias invisibles al entrenador |
 | `web/RegistroTest` | 14 | registro, mass assignment, no registrar admin |
 | `web/LoginSesionTest` | 15 | login, 401, logout, CSRF, RS12 |
