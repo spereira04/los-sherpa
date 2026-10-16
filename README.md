@@ -296,7 +296,7 @@ que necesita bajar algo (por ejemplo `spring-boot:run` la primera vez). Corrélo
 
 ```
 LosSherpa/
-├─ backend/     Spring Boot 3.3 + Java 21 (API y, en modo prod, los estáticos)
+├─ backend/     Spring Boot 3.5 + Java 21 (API y, en modo prod, los estáticos)
 ├─ frontend/    React + Vite + TypeScript
 ├─ data/        sherpa.db (fuera de cualquier directorio servido)
 ├─ logs/        app.log y auditoria.log (fuera de cualquier directorio servido)
