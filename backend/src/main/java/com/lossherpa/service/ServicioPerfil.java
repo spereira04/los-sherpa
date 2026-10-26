@@ -4,6 +4,7 @@ import com.lossherpa.domain.Rol;
 import com.lossherpa.domain.Usuario;
 import com.lossherpa.repository.UsuarioRepository;
 import com.lossherpa.web.dto.in.ActualizarPerfilRequest;
+import com.lossherpa.web.dto.in.ActualizarPreferenciasRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +43,8 @@ public class ServicioPerfil {
         usuario.setApellido(datos.apellido().trim());
         usuario.setFechaNacimiento(datos.fechaNacimiento());
         usuario.setDescripcion(ServicioUsuarios.limpiarTextoOpcional(datos.descripcion()));
+        // RF7: el telefono es opcional; vacio o null lo borra.
+        usuario.setTelefono(ServicioUsuarios.limpiarTextoOpcional(datos.telefono()));
 
         if (usuario.getRol() == Rol.ATLETA) {
             usuario.setPesoKg(datos.pesoKg());
@@ -49,6 +52,14 @@ public class ServicioPerfil {
             usuario.setAniosServicio(datos.aniosServicio());
         }
 
+        return usuarios.save(usuario);
+    }
+
+    /** RF7 / RS04: solo el tema, siempre del usuario autenticado. */
+    @Transactional
+    public Usuario actualizarPreferencias(ActualizarPreferenciasRequest datos) {
+        Usuario usuario = servicioUsuarios.autenticado();
+        usuario.setTema(datos.tema());
         return usuarios.save(usuario);
     }
 }

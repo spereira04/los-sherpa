@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -18,8 +19,16 @@ public interface EjecucionRepository extends JpaRepository<Ejecucion, UUID> {
 
     /** Historial propio del atleta, con filtro opcional por rango de fechas. */
     /** Borrado de un usuario por el admin: se cargan para que orphanRemoval limpie las series. */
+    @EntityGraph(attributePaths = {"series"})
     @Query("select e from Ejecucion e where e.atleta.id = :atletaId")
     List<Ejecucion> listarTodasDelAtleta(@Param("atletaId") UUID atletaId);
+
+    /** RF4 + RS04: el dueño se aplica en la consulta, no después de buscar por id. */
+    @EntityGraph(attributePaths = {"series"})
+    @Query("select e from Ejecucion e where e.id = :id and e.atleta.id = :atletaId")
+    Optional<Ejecucion> buscarDeAtleta(@Param("id") UUID id,
+                                       @Param("atletaId") UUID atletaId);
+    boolean existsByRutinaId(UUID rutinaId);
 
     @EntityGraph(attributePaths = {"rutina", "series", "series.ejercicio"})
     @Query("""

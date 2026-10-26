@@ -15,6 +15,7 @@ import java.util.UUID;
 public record RutinaResponse(
         UUID id,
         String nombre,
+        String observaciones,
         OrigenRutina origen,
         Instant creadaEn,
         String creadaPor,
@@ -26,12 +27,14 @@ public record RutinaResponse(
             int orden,
             String nombre,
             int series,
-            int repeticiones
+            int repeticiones,
+            String observaciones
     ) {
 
         static EjercicioResponse de(EjercicioRutina ejercicio) {
             return new EjercicioResponse(ejercicio.getId(), ejercicio.getOrden(),
-                    ejercicio.getNombre(), ejercicio.getSeries(), ejercicio.getRepeticiones());
+                    ejercicio.getNombre(), ejercicio.getSeries(), ejercicio.getRepeticiones(),
+                    ejercicio.getObservaciones());
         }
     }
 
@@ -44,6 +47,7 @@ public record RutinaResponse(
         return new RutinaResponse(
                 rutina.getId(),
                 rutina.getNombre(),
+                rutina.getObservaciones(),
                 rutina.getOrigen(),
                 rutina.getCreadaEn(),
                 creadaPor,

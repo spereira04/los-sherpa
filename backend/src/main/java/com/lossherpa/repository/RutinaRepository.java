@@ -41,6 +41,7 @@ public interface RutinaRepository extends JpaRepository<Rutina, UUID> {
             left join fetch r.ejercicios
             left join fetch r.entrenadorCreador
             where r.atleta.id = :atletaId
+              and r.archivadaEn is null
             order by r.creadaEn desc
             """)
     List<Rutina> listarPorAtleta(@Param("atletaId") UUID atletaId);
@@ -51,6 +52,7 @@ public interface RutinaRepository extends JpaRepository<Rutina, UUID> {
             left join fetch r.ejercicios
             left join fetch r.entrenadorCreador
             where r.id = :rutinaId and r.atleta.id = :atletaId
+              and r.archivadaEn is null
             """)
     Optional<Rutina> buscarDeAtleta(@Param("rutinaId") UUID rutinaId,
                                     @Param("atletaId") UUID atletaId);
@@ -66,6 +68,7 @@ public interface RutinaRepository extends JpaRepository<Rutina, UUID> {
             where r.atleta.id = :atletaId
               and r.origen = com.lossherpa.domain.OrigenRutina.ASIGNADA
               and r.entrenadorCreador.id = :entrenadorId
+              and r.archivadaEn is null
               and exists (select 1 from Vinculo v
                           where v.atleta.id = :atletaId
                             and v.entrenador.id = :entrenadorId
@@ -83,6 +86,7 @@ public interface RutinaRepository extends JpaRepository<Rutina, UUID> {
             where r.id = :rutinaId
               and r.origen = com.lossherpa.domain.OrigenRutina.ASIGNADA
               and r.entrenadorCreador.id = :entrenadorId
+              and r.archivadaEn is null
               and exists (select 1 from Vinculo v
                           where v.atleta.id = r.atleta.id
                             and v.entrenador.id = :entrenadorId

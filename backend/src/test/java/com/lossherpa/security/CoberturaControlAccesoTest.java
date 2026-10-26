@@ -120,12 +120,12 @@ class CoberturaControlAccesoTest extends TestIntegracion {
     @DisplayName("RS16 (demostracion): una regla sin endpoint hace fallar la verificacion")
     void unaReglaHuerfanaSeDetecta() {
         List<Regla> reglas = new ArrayList<>(politica.reglas());
-        reglas.add(new Regla(HttpMethod.DELETE, "/api/atleta/ejecuciones/{idEjecucion}",
+        reglas.add(new Regla(HttpMethod.DELETE, "/api/atleta/rutinas/{idRutina}",
                 Acceso.ATLETA, Atributo.DUENO));
 
         assertThat(reglasHuerfanas(InspectorDeEndpoints.de(contexto), new PoliticaAcceso(reglas)))
                 .singleElement().asString()
-                .startsWith("DELETE /api/atleta/ejecuciones/{idEjecucion}");
+                .startsWith("DELETE /api/atleta/rutinas/{idRutina}");
     }
 
     @Test

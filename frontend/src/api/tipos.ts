@@ -1,4 +1,5 @@
 import type { Rol } from './cliente'
+import type { Tema } from '../tema'
 
 export type Sesion = {
   id: string
@@ -6,6 +7,7 @@ export type Sesion = {
   rol: Rol
   nombre: string
   apellido: string
+  tema: Tema
 }
 
 export type Perfil = {
@@ -19,6 +21,8 @@ export type Perfil = {
   descripcion?: string
   pesoKg?: number
   aniosServicio?: number
+  telefono?: string
+  tema: Tema
 }
 
 export type PerfilPublico = {
@@ -29,6 +33,8 @@ export type PerfilPublico = {
   descripcion?: string
   aniosServicio?: number
   pesoKg?: number
+  /** Solo viaja con vinculo vigente. */
+  telefono?: string
 }
 
 export type EstadoSolicitud = 'PENDIENTE' | 'ACEPTADA' | 'RECHAZADA' | 'CANCELADA'
@@ -40,11 +46,12 @@ export type SolicitudEnviada = {
   entrenador: PerfilPublico
 }
 
+// Antes del vinculo el entrenador solo ve nombre, apellido y edad del solicitante.
 export type SolicitudRecibida = {
   id: string
   estado: EstadoSolicitud
   creadaEn: string
-  atleta: PerfilPublico
+  atleta: { nombre: string; apellido: string; edad: number }
 }
 
 export type Vinculo = {
@@ -68,11 +75,13 @@ export type EjercicioRutina = {
   nombre: string
   series: number
   repeticiones: number
+  observaciones?: string
 }
 
 export type Rutina = {
   id: string
   nombre: string
+  observaciones?: string
   origen: OrigenRutina
   creadaEn: string
   creadaPor?: string

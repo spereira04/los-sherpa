@@ -84,6 +84,9 @@ public class ServicioAdmin {
     /**
      * Modificacion: misma lista blanca que el perfil propio. El email y el rol siguen siendo
      * inmutables incluso para el admin.
+     *
+     * RS06: los campos de rol se validan contra el rol del usuario editado (no contra el del
+     * admin): pesoKg solo a un atleta, aniosServicio solo a un entrenador.
      */
     @Transactional
     public Usuario actualizar(UUID idUsuario, ActualizarPerfilRequest datos) {

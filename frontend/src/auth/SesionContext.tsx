@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { api, registrarManejadorDeSesionPerdida, type Rol } from '../api/cliente'
 import type { Sesion } from '../api/tipos'
+import { aplicarTema } from '../tema'
 
 type EstadoSesion = 'cargando' | 'lista'
 
@@ -37,7 +38,15 @@ export function panelDe(rol: Rol): string {
 
 export function ProveedorSesion({ children }: { children: ReactNode }) {
   const [estado, setEstado] = useState<EstadoSesion>('cargando')
-  const [sesion, setSesion] = useState<Sesion | null>(null)
+  const [sesion, setSesionEstado] = useState<Sesion | null>(null)
+
+  // RF7: la preferencia del perfil manda sobre lo que haya en localStorage.
+  const setSesion = useCallback((nueva: Sesion | null) => {
+    if (nueva !== null) {
+      aplicarTema(nueva.tema)
+    }
+    setSesionEstado(nueva)
+  }, [])
 
   const cargarSesionActual = useCallback(async () => {
     try {
@@ -49,7 +58,7 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
     } finally {
       setEstado('lista')
     }
-  }, [])
+  }, [setSesion])
 
   useEffect(() => {
     // RS10: si el backend invalida la sesion, el cliente la olvida en el acto.
@@ -63,13 +72,13 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
       }
       await cargarSesionActual()
     })()
-  }, [cargarSesionActual])
+  }, [cargarSesionActual, setSesion])
 
   const entrar = useCallback(async (email: string, contrasena: string) => {
     const nueva = await api.crear<Sesion>('/api/auth/login', { email, contrasena })
     setSesion(nueva)
     return nueva
-  }, [])
+  }, [setSesion])
 
   const salir = useCallback(async () => {
     try {
@@ -77,7 +86,7 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
     } finally {
       setSesion(null)
     }
-  }, [])
+  }, [setSesion])
 
   const valor = useMemo<ContextoSesion>(
     () => ({ estado, sesion, entrar, salir, refrescar: cargarSesionActual }),

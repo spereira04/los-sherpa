@@ -69,7 +69,7 @@ public class EntrenadorAtletasController {
     /** RS04: exige vinculo activo. Un atleta ajeno o un exatleta dan 404. */
     @GetMapping("/atletas/{idAtleta}")
     public PerfilPublicoResponse verAtleta(@PathVariable UUID idAtleta) {
-        return PerfilPublicoResponse.deAtleta(servicioVinculacion.verAtletaActivo(idAtleta));
+        return PerfilPublicoResponse.deAtletaVinculado(servicioVinculacion.verAtletaActivo(idAtleta));
     }
 
     @DeleteMapping("/atletas/{idAtleta}/vinculo")
