@@ -11,6 +11,7 @@ import com.lossherpa.error.ReglaNegocioException;
 import com.lossherpa.repository.SolicitudVinculacionRepository;
 import com.lossherpa.repository.UsuarioRepository;
 import com.lossherpa.repository.VinculoRepository;
+import com.lossherpa.security.AuditorAcceso;
 import com.lossherpa.security.UsuarioActual;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,15 +37,18 @@ public class ServicioVinculacion {
     private final SolicitudVinculacionRepository solicitudes;
     private final VinculoRepository vinculos;
     private final ServicioUsuarios servicioUsuarios;
+    private final AuditorAcceso auditor;
 
     public ServicioVinculacion(UsuarioRepository usuarios,
                                SolicitudVinculacionRepository solicitudes,
                                VinculoRepository vinculos,
-                               ServicioUsuarios servicioUsuarios) {
+                               ServicioUsuarios servicioUsuarios,
+                               AuditorAcceso auditor) {
         this.usuarios = usuarios;
         this.solicitudes = solicitudes;
         this.vinculos = vinculos;
         this.servicioUsuarios = servicioUsuarios;
+        this.auditor = auditor;
     }
 
     // ------------------------------------------------------------------ atleta
@@ -121,6 +125,7 @@ public class ServicioVinculacion {
 
         // RS10: al cerrar el vinculo el entrenador pierde el acceso en el request siguiente.
         vinculo.cerrar(LocalDate.now());
+        auditor.vinculoCerrado(UsuarioActual.id(), vinculo.getEntrenador().getId());
     }
 
     // -------------------------------------------------------------- entrenador
@@ -163,7 +168,9 @@ public class ServicioVinculacion {
         solicitudes.listarOtrasPendientesDelAtleta(atleta.getId(), solicitud.getId())
                 .forEach(otra -> otra.resolver(EstadoSolicitud.CANCELADA));
 
-        return vinculos.save(new Vinculo(entrenador, atleta));
+        Vinculo nuevo = vinculos.save(new Vinculo(entrenador, atleta));
+        auditor.vinculoCreado(entrenador.getId(), atleta.getId());
+        return nuevo;
     }
 
     @Transactional
@@ -178,6 +185,7 @@ public class ServicioVinculacion {
             throw new ConflictoException("Esa solicitud ya fue resuelta");
         }
         solicitud.resolver(EstadoSolicitud.RECHAZADA);
+        auditor.solicitudRechazada(entrenador.getId(), solicitud.getAtleta().getId());
     }
 
     @Transactional(readOnly = true)
@@ -206,6 +214,7 @@ public class ServicioVinculacion {
     public void desvincularComoEntrenador(UUID idAtleta) {
         Usuario entrenador = servicioUsuarios.autenticadoConRol(Rol.ENTRENADOR);
         vinculoActivoCon(entrenador.getId(), idAtleta).cerrar(LocalDate.now());
+        auditor.vinculoCerrado(entrenador.getId(), idAtleta);
     }
 
     /**

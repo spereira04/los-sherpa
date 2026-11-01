@@ -8,6 +8,8 @@ import com.lossherpa.repository.RutinaRepository;
 import com.lossherpa.repository.SolicitudVinculacionRepository;
 import com.lossherpa.repository.UsuarioRepository;
 import com.lossherpa.repository.VinculoRepository;
+import com.lossherpa.security.AuditorAcceso;
+import com.lossherpa.security.UsuarioActual;
 import com.lossherpa.security.UsuarioAutenticado;
 import com.lossherpa.web.dto.in.ActualizarPerfilRequest;
 import com.lossherpa.web.dto.in.CrearUsuarioAdminRequest;
@@ -44,12 +46,14 @@ public class ServicioAdmin {
     private final SolicitudVinculacionRepository solicitudes;
     private final ServicioAutenticacion servicioAutenticacion;
     private final SessionRegistry registroDeSesiones;
+    private final AuditorAcceso auditor;
 
     public ServicioAdmin(UsuarioRepository usuarios, EjecucionRepository ejecuciones,
                          RutinaRepository rutinas, VinculoRepository vinculos,
                          SolicitudVinculacionRepository solicitudes,
                          ServicioAutenticacion servicioAutenticacion,
-                         SessionRegistry registroDeSesiones) {
+                         SessionRegistry registroDeSesiones,
+                         AuditorAcceso auditor) {
         this.usuarios = usuarios;
         this.ejecuciones = ejecuciones;
         this.rutinas = rutinas;
@@ -57,6 +61,7 @@ public class ServicioAdmin {
         this.solicitudes = solicitudes;
         this.servicioAutenticacion = servicioAutenticacion;
         this.registroDeSesiones = registroDeSesiones;
+        this.auditor = auditor;
     }
 
     /** Listado de entrenadores y atletas. Los otros admins no aparecen nunca. */
@@ -78,7 +83,9 @@ public class ServicioAdmin {
     /** El rol viene de RolRegistro, que no incluye ADMIN: no se pueden crear admins. */
     @Transactional
     public Usuario crear(CrearUsuarioAdminRequest datos) {
-        return servicioAutenticacion.registrar(datos.aRegistro());
+        Usuario creado = servicioAutenticacion.registrar(datos.aRegistro());
+        auditor.usuarioCreado(UsuarioActual.id(), creado.getId());
+        return creado;
     }
 
     /**
@@ -106,7 +113,9 @@ public class ServicioAdmin {
         } else if (usuario.getRol() == Rol.ENTRENADOR) {
             usuario.setAniosServicio(datos.aniosServicio());
         }
-        return usuarios.save(usuario);
+        Usuario guardado = usuarios.save(usuario);
+        auditor.usuarioModificado(UsuarioActual.id(), guardado.getId());
+        return guardado;
     }
 
     /**
@@ -139,6 +148,7 @@ public class ServicioAdmin {
         expirarSesionesDe(usuario.getId());
 
         // No se loguea el email: alcanza con el id y el rol.
+        auditor.usuarioEliminado(UsuarioActual.id(), usuario.getId());
         LOG.info("Usuario eliminado por el admin: rol={} rutinasAsignadasConservadas={}",
                 usuario.getRol(), rutinasConservadas);
     }
