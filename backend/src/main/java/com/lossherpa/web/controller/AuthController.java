@@ -18,6 +18,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -99,6 +100,12 @@ public class AuthController {
         // esta fuera de nuestro control).
         char[] normalizada = PoliticaContrasena.normalizar(datos.contrasena());
         try {
+            if (PoliticaContrasena.superaLargoMaximo(normalizada)) {
+                // Ninguna cuenta puede tener una contrasena asi (la politica la rechaza al
+                // crearla) y BCrypt no la procesa: se responde como credenciales invalidas en
+                // vez de dejar que el encoder lance un 500 o compare una version truncada.
+                throw new BadCredentialsException("contrasena demasiado larga");
+            }
             Authentication autenticacion = authenticationManager.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(
                             email, CharBuffer.wrap(normalizada)));

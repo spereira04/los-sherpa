@@ -68,7 +68,8 @@ export function Registro() {
                    autoComplete="new-password" minLength={12} required />
           </Campo>
           <p className="ayuda">
-            Minimo 12 caracteres. Se aceptan espacios y cualquier simbolo. No se admiten
+            Minimo 12 caracteres y maximo 72 (las letras con tilde y la ñ cuentan doble y los
+            emoji cuadruple). Se aceptan espacios y cualquier simbolo. No se admiten
             contrasenas muy usadas ni que contengan tu email, nombre o apellido.
           </p>
 
