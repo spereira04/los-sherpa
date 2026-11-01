@@ -2,8 +2,10 @@ package com.lossherpa.web;
 
 import com.lossherpa.support.TestIntegracion;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.test.context.TestPropertySource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -122,11 +124,15 @@ class EstaticosTest extends TestIntegracion {
     @Test
     @DisplayName("RS14: las cabeceras de seguridad estan presentes")
     void lasCabecerasDeSeguridadEstanPresentes() throws Exception {
-        mvc.perform(get("/"))
+        mvc.perform(get("/").secure(true))
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(header().string("X-Frame-Options", "DENY"))
                 .andExpect(header().string("Referrer-Policy", "same-origin"))
+                .andExpect(header().string("Strict-Transport-Security",
+                        org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString("max-age=31536000"),
+                                org.hamcrest.Matchers.containsString("includeSubDomains"))))
                 .andExpect(header().string("Content-Security-Policy",
                         org.hamcrest.Matchers.allOf(
                                 org.hamcrest.Matchers.containsString("default-src 'self'"),
@@ -134,6 +140,11 @@ class EstaticosTest extends TestIntegracion {
                                 org.hamcrest.Matchers.containsString("object-src 'none'"))))
                 .andExpect(header().string("Permissions-Policy",
                         org.hamcrest.Matchers.containsString("geolocation=()")));
+
+        // Por HTTP sin COOKIE_SECURE=true no se envia HSTS.
+        mvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("Strict-Transport-Security"));
     }
 
     @Test
@@ -148,5 +159,21 @@ class EstaticosTest extends TestIntegracion {
                 .doesNotContain("org.springframework")
                 .doesNotContain("com.lossherpa")
                 .doesNotContain("Tomcat");
+    }
+
+    @Nested
+    @TestPropertySource(properties = "COOKIE_SECURE=true")
+    class ConCookieSecureActivo extends TestIntegracion {
+
+        @Test
+        @DisplayName("RS14: con COOKIE_SECURE=true se envia HSTS")
+        void conCookieSecureEnviaHsts() throws Exception {
+            mvc.perform(get("/api/csrf"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Strict-Transport-Security",
+                            org.hamcrest.Matchers.allOf(
+                                    org.hamcrest.Matchers.containsString("max-age=31536000"),
+                                    org.hamcrest.Matchers.containsString("includeSubDomains"))));
+        }
     }
 }

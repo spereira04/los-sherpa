@@ -654,7 +654,7 @@ sesión** a un endpoint protegido dé **401** (el `AuthorizationFilter` no encue
 | `include-stacktrace: never`, `include-message: never`, `include-exception: false`, whitelabel apagada | `resources/application.yml` |
 | Actuator, consola H2 y Swagger no están en el classpath, y aun si estuvieran quedan denegados | `pom.xml`, `config/SecurityConfig.java` |
 | CORS restringido a `${CORS_ORIGENES}` con lista explícita de métodos y cabeceras | `config/SecurityConfig.java` |
-| CSP, `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` | `config/SecurityConfig.java` |
+| CSP, `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, `Strict-Transport-Security` (HSTS) | `config/SecurityConfig.java` |
 | Cookie `SHERPASESSION`: `HttpOnly`, `SameSite=Lax`, `Secure` por `${COOKIE_SECURE}` | `resources/application.yml` |
 | BCrypt con factor 12 (default de Spring: 10) | `config/SecurityConfig.java` |
 | Seed de ejemplo solo bajo el perfil `dev` y con `sherpa.seed.habilitado=true` | `config/SeedDesarrollo.java`, `resources/application-dev.yml` |
@@ -667,8 +667,8 @@ font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none';
 base-uri 'self'; object-src 'none'
 ```
 
-HSTS está deshabilitado porque en local no hay TLS; se activa junto con `COOKIE_SECURE=true`
-al servir por HTTPS.
+HSTS (`Strict-Transport-Security: max-age=31536000 ; includeSubDomains`) no se envía por HTTP
+en local; se activa al servir por HTTPS o junto con `COOKIE_SECURE=true`.
 
 **Decisión.** La suite de tests baja el costo de BCrypt a 4 por velocidad
 (`sherpa.seguridad.costo-bcrypt`). Para que ese atajo no se filtre a producción,

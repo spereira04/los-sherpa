@@ -181,7 +181,7 @@ Ninguna tiene valor por defecto en el código ni en los archivos de configuraci�
 | `SEED_PASSWORD` | — | Contraseña compartida de los usuarios de ejemplo. Obligatoria con el perfil `dev`. |
 | `SHERPA_DB` | `../data/sherpa.db` | Ruta del archivo SQLite. Queda fuera de cualquier directorio servido. |
 | `SERVER_PORT` | `8080` | Puerto del backend. |
-| `COOKIE_SECURE` | `false` | Ponelo en `true` al servir por HTTPS. |
+| `COOKIE_SECURE` | `false` | Ponelo en `true` al servir por HTTPS (marca la cookie como `Secure` y activa HSTS). |
 | `CORS_ORIGENES` | `http://localhost:5173` | Orígenes permitidos, separados por coma. |
 | `LOG_DIR` | `logs` | Directorio de los logs. Queda fuera de cualquier directorio servido. |
 
