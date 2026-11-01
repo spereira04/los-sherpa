@@ -60,7 +60,7 @@ class CamposPorRolTest extends TestIntegracion {
         dani = crearEntrenador("dani@test.com", "Dani", "Mora");
         admin = crearAdmin("admin@test.com");
 
-        crearVinculoActivo(beto, ana);
+        vinculos.save(new Vinculo(beto, ana, LocalDate.now().minusDays(7)));
         Vinculo viejo = crearVinculoActivo(beto, clara);
         viejo.cerrar(LocalDate.now());
         vinculos.save(viejo);

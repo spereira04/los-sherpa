@@ -53,6 +53,11 @@ public class Vinculo {
         this.atleta = atleta;
     }
 
+    public Vinculo(Usuario entrenador, Usuario atleta, LocalDate fechaInicio) {
+        this(entrenador, atleta);
+        this.fechaInicio = fechaInicio;
+    }
+
     public UUID getId() {
         return id;
     }

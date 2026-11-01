@@ -2,6 +2,7 @@ package com.lossherpa.web;
 
 import com.lossherpa.domain.Rutina;
 import com.lossherpa.domain.Usuario;
+import com.lossherpa.domain.Vinculo;
 import com.lossherpa.support.CapturadorDeAuditoria;
 import com.lossherpa.support.TestIntegracion;
 import org.junit.jupiter.api.BeforeEach;
@@ -422,7 +423,8 @@ class EjecucionesTest extends TestIntegracion {
     @Test
     @DisplayName("el entrenador tambien puede filtrar el historial por fechas")
     void elEntrenadorFiltraPorFechas() throws Exception {
-        Rutina asignada = crearRutinaAsignadaConVinculo();
+        vinculos.save(new Vinculo(entrenador, atleta, HOY.minusDays(60)));
+        Rutina asignada = crearRutinaAsignada(entrenador, atleta, "Fuerza 1");
         crearEjecucion(asignada, HOY.minusDays(40), 70);
         crearEjecucion(asignada, HOY.minusDays(1), 75);
         MockHttpSession sesion = iniciarSesion("beto@test.com");
@@ -432,6 +434,31 @@ class EjecucionesTest extends TestIntegracion {
                         .param("desde", HOY.minusDays(7).toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    @DisplayName("RS10: al revincularse, el entrenador no ve lo hecho entre los dos vinculos")
+    void alRevincularseNoVeLoHechoSinVinculo() throws Exception {
+        Vinculo anterior = vinculos.save(new Vinculo(entrenador, atleta, HOY.minusDays(60)));
+        anterior.cerrar(HOY.minusDays(20));
+        vinculos.save(anterior);
+        vinculos.save(new Vinculo(entrenador, atleta, HOY.minusDays(5)));
+        Rutina asignada = crearRutinaAsignada(entrenador, atleta, "Base de fuerza");
+        crearEjecucion(asignada, HOY.minusDays(30), 70);   // durante el primer vinculo
+        crearEjecucion(asignada, HOY.minusDays(20), 71);   // ultimo dia del primer vinculo
+        crearEjecucion(asignada, HOY.minusDays(10), 99);   // sin vinculo: no debe verse
+        crearEjecucion(asignada, HOY.minusDays(5), 72);    // primer dia del segundo vinculo
+        crearEjecucion(asignada, HOY.minusDays(1), 73);    // durante el segundo vinculo
+        MockHttpSession sesion = iniciarSesion("beto@test.com");
+
+        String respuesta = mvc.perform(
+                        get("/api/entrenador/atletas/" + atleta.getId() + "/ejecuciones")
+                                .session(sesion))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(4))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(respuesta).doesNotContain("99.0");
     }
 
     private Rutina crearRutinaAsignadaConVinculo() {
