@@ -112,6 +112,7 @@ public class AuthController {
             contextRepository.saveContext(contexto, request, response);
 
             UsuarioAutenticado principal = (UsuarioAutenticado) autenticacion.getPrincipal();
+            auditor.loginExitoso(request, principal.getId());
             return usuarios.findById(principal.getId())
                     .map(SesionResponse::de)
                     .orElseThrow(CredencialesInvalidasException::new);

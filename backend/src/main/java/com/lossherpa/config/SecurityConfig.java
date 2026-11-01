@@ -6,6 +6,7 @@ import com.lossherpa.security.ManejadorAccesoDenegado;
 import com.lossherpa.security.PoliticaAcceso;
 import com.lossherpa.security.PuntoEntradaNoAutenticado;
 import com.lossherpa.security.ServicioDetallesUsuario;
+import com.lossherpa.security.UsuarioAutenticado;
 import com.lossherpa.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -145,7 +146,8 @@ public class SecurityConfig {
                                            ManejadorAccesoDenegado manejadorDenegado,
                                            SessionAuthenticationStrategy estrategiaSesion,
                                            SecurityContextRepository contextRepository,
-                                           PoliticaAcceso politica)
+                                           PoliticaAcceso politica,
+                                           AuditorAcceso auditor)
             throws Exception {
 
         // CSRF compatible con SPA: cookie XSRF-TOKEN legible por JS, el cliente la reenvia
@@ -175,8 +177,13 @@ public class SecurityConfig {
                     .invalidateHttpSession(true)
                     .clearAuthentication(true)
                     .deleteCookies("SHERPASESSION", "XSRF-TOKEN")
-                    .logoutSuccessHandler((req, res, auth) ->
-                            res.setStatus(HttpStatus.NO_CONTENT.value())))
+                    .logoutSuccessHandler((req, res, auth) -> {
+                        // RS12: auth es null si la sesion ya habia expirado.
+                        String id = auth != null && auth.getPrincipal() instanceof UsuarioAutenticado u
+                                ? u.getId().toString() : null;
+                        auditor.logout(req, id);
+                        res.setStatus(HttpStatus.NO_CONTENT.value());
+                    }))
 
             .exceptionHandling(ex -> ex
                     .authenticationEntryPoint(puntoEntrada)

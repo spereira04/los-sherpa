@@ -92,6 +92,58 @@ public class AuditorAcceso {
                 SanitizadorLog.limpiar(atletaId.toString()));
     }
 
+    // ---------------------------------------------------------- RS10 + RS12: cambios
+
+    /** Cambio de autorizacion: quien (actor) hizo que sobre quien (afectado). Sin datos personales. */
+    private void cambio(String evento, UUID actorId, UUID afectadoId) {
+        LOG.info("{\"ts\":\"{}\",\"evento\":\"{}\",\"actorId\":\"{}\",\"afectadoId\":\"{}\"}",
+                Instant.now(),
+                evento,
+                SanitizadorLog.limpiar(actorId == null ? "sistema" : actorId.toString()),
+                SanitizadorLog.limpiar(afectadoId == null ? null : afectadoId.toString()));
+    }
+
+    public void vinculoCreado(UUID entrenadorId, UUID atletaId) {
+        cambio("vinculo_creado", entrenadorId, atletaId);
+    }
+
+    /** El actor es quien cerro el vinculo (atleta o entrenador); afectado, la contraparte. */
+    public void vinculoCerrado(UUID actorId, UUID afectadoId) {
+        cambio("vinculo_cerrado", actorId, afectadoId);
+    }
+
+    public void solicitudRechazada(UUID entrenadorId, UUID atletaId) {
+        cambio("solicitud_rechazada", entrenadorId, atletaId);
+    }
+
+    public void usuarioCreado(UUID adminId, UUID usuarioId) {
+        cambio("usuario_creado", adminId, usuarioId);
+    }
+
+    public void usuarioModificado(UUID adminId, UUID usuarioId) {
+        cambio("usuario_modificado", adminId, usuarioId);
+    }
+
+    public void usuarioEliminado(UUID adminId, UUID usuarioId) {
+        cambio("usuario_eliminado", adminId, usuarioId);
+    }
+
+    public void loginExitoso(HttpServletRequest request, UUID usuarioId) {
+        LOG.info("{\"ts\":\"{}\",\"evento\":\"login_exitoso\",\"usuarioId\":\"{}\","
+                        + "\"ip\":\"{}\"}",
+                Instant.now(),
+                SanitizadorLog.limpiar(usuarioId.toString()),
+                SanitizadorLog.limpiar(ipDe(request)));
+    }
+
+    public void logout(HttpServletRequest request, String usuarioId) {
+        LOG.info("{\"ts\":\"{}\",\"evento\":\"logout\",\"usuarioId\":\"{}\","
+                        + "\"ip\":\"{}\"}",
+                Instant.now(),
+                SanitizadorLog.limpiar(usuarioId == null ? "anonimo" : usuarioId),
+                SanitizadorLog.limpiar(ipDe(request)));
+    }
+
     private String ipDe(HttpServletRequest request) {
         // No se confia en X-Forwarded-For: la app corre en local sin proxy reverso.
         return request == null ? null : request.getRemoteAddr();
