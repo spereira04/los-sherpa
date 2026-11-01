@@ -44,7 +44,9 @@ public interface EjecucionRepository extends JpaRepository<Ejecucion, UUID> {
 
     /**
      * RS04 + RS10: el entrenador solo ve ejecuciones de rutinas que el asigno y
-     * unicamente mientras el vinculo siga activo. Las ejecuciones de rutinas PROPIAS
+     * unicamente mientras el vinculo siga activo. Ademas, la fecha de la ejecucion debe caer
+     * dentro del periodo de algun vinculo entre ambos (inclusive en los dos extremos): lo
+     * hecho entre dos vinculos, sin entrenador, no se ve al revincularse. Las ejecuciones de rutinas PROPIAS
      * del atleta nunca entran en el resultado.
      */
     @EntityGraph(attributePaths = {"rutina", "series", "series.ejercicio"})
@@ -57,6 +59,11 @@ public interface EjecucionRepository extends JpaRepository<Ejecucion, UUID> {
                           where v.atleta.id = :atletaId
                             and v.entrenador.id = :entrenadorId
                             and v.fechaFin is null)
+              and exists (select 1 from Vinculo p
+                          where p.atleta.id = :atletaId
+                            and p.entrenador.id = :entrenadorId
+                            and p.fechaInicio <= e.fecha
+                            and (p.fechaFin is null or p.fechaFin >= e.fecha))
               and (:desde is null or e.fecha >= :desde)
               and (:hasta is null or e.fecha <= :hasta)
             order by e.fecha desc, e.creadaEn desc

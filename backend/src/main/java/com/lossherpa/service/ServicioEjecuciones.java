@@ -133,7 +133,8 @@ public class ServicioEjecuciones {
 
     /**
      * RS04 + RS10 + reglas de visibilidad: solo ejecuciones de rutinas que este entrenador
-     * asigno, y solo mientras el vinculo siga activo. Las ejecuciones de rutinas PROPIAS
+     * asigno, solo mientras el vinculo siga activo y solo las
+     * hechas dentro del periodo de algun vinculo con el atleta (RS10). Las ejecuciones de rutinas PROPIAS
      * del atleta no entran nunca.
      */
     @Transactional(readOnly = true)
