@@ -115,9 +115,9 @@ public class ManejadorGlobalErrores {
     @ExceptionHandler(RecursoNoEncontradoException.class)
     public ResponseEntity<Map<String, Object>> noEncontrado(RecursoNoEncontradoException ex,
                                                             HttpServletRequest request) {
-        // RS12: el intento sobre un recurso ajeno o inexistente deja rastro.
+        // RS12: el intento deja rastro con el motivo real; el cliente recibe el mismo 404.
         auditor.denegado(request, UsuarioActual.idOpcional().map(Object::toString).orElse(null),
-                HttpStatus.NOT_FOUND.value(), "recurso inexistente o ajeno al usuario");
+                HttpStatus.NOT_FOUND.value(), ex.getMotivo());
         return respuesta(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 

@@ -65,10 +65,15 @@ public class AtletaVinculacionController {
         servicioVinculacion.cancelarSolicitud(idSolicitud);
     }
 
-    /** Perfil publico del entrenador activo. 404 si el atleta no tiene entrenador. */
+    /**
+     * Perfil publico del entrenador activo. 204 si el atleta no tiene entrenador: es un estado
+     * valido y no se audita como acceso denegado (RS12).
+     */
     @GetMapping("/entrenador")
-    public MiEntrenadorResponse miEntrenador() {
-        return MiEntrenadorResponse.de(servicioVinculacion.miVinculoComoAtleta());
+    public ResponseEntity<MiEntrenadorResponse> miEntrenador() {
+        return servicioVinculacion.miVinculoComoAtleta()
+                .map(vinculo -> ResponseEntity.ok(MiEntrenadorResponse.de(vinculo)))
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @DeleteMapping("/vinculo")

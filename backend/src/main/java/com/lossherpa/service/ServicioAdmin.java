@@ -155,7 +155,10 @@ public class ServicioAdmin {
 
     private Usuario gestionable(UUID idUsuario) {
         return usuarios.buscarGestionablePorAdmin(idUsuario)
-                .orElseThrow(RecursoNoEncontradoException::generico);
+                .orElseThrow(() -> RecursoNoEncontradoException.conMotivo(
+                        usuarios.existsById(idUsuario)
+                                ? "el usuario es administrador y no es gestionable"
+                                : "usuario inexistente"));
     }
 
     private void expirarSesionesDe(UUID idUsuario) {

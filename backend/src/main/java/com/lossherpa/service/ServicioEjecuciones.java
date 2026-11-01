@@ -65,7 +65,8 @@ public class ServicioEjecuciones {
 
         // RS04: (id de rutina + atleta autenticado). La rutina de otro atleta da 404.
         Rutina rutina = rutinas.buscarDeAtleta(idRutina, UsuarioActual.id())
-                .orElseThrow(RecursoNoEncontradoException::generico);
+                .orElseThrow(() -> ServicioRutinas.rutinaDelAtletaNoEncontrada(
+                        rutinas, idRutina, UsuarioActual.id()));
 
         Map<UUID, EjercicioRutina> ejerciciosDeLaRutina = new HashMap<>();
         rutina.getEjercicios().forEach(e -> ejerciciosDeLaRutina.put(e.getId(), e));
@@ -111,7 +112,8 @@ public class ServicioEjecuciones {
     public void eliminar(UUID idEjecucion) {
         Usuario atleta = servicioUsuarios.autenticadoConRol(Rol.ATLETA);
         Ejecucion ejecucion = ejecuciones.buscarDeAtleta(idEjecucion, atleta.getId())
-                .orElseThrow(RecursoNoEncontradoException::generico);
+                .orElseThrow(() -> RecursoNoEncontradoException.segun(
+                        ejecuciones.existsById(idEjecucion), "ejecucion"));
         ejecuciones.delete(ejecucion);
         auditor.ejecucionEliminada(atleta.getId(), ejecucion.getId());
     }

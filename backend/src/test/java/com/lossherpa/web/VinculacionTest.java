@@ -2,6 +2,7 @@ package com.lossherpa.web;
 
 import com.lossherpa.domain.EstadoSolicitud;
 import com.lossherpa.domain.Usuario;
+import com.lossherpa.support.CapturadorDeAuditoria;
 import com.lossherpa.support.TestIntegracion;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -303,12 +304,16 @@ class VinculacionTest extends TestIntegracion {
     }
 
     @Test
-    @DisplayName("un atleta sin entrenador recibe 404 al pedir su entrenador")
+    @DisplayName("un atleta sin entrenador recibe 204 y no queda auditado como denegacion")
     void atletaSinEntrenador() throws Exception {
         MockHttpSession sesion = iniciarSesion("ana@test.com");
 
-        mvc.perform(get("/api/atleta/entrenador").session(sesion))
-                .andExpect(status().isNotFound());
+        try (CapturadorDeAuditoria auditoria = new CapturadorDeAuditoria()) {
+            mvc.perform(get("/api/atleta/entrenador").session(sesion))
+                    .andExpect(status().isNoContent());
+
+            assertThat(auditoria.lineas()).isEmpty();
+        }
     }
 
     @Test
@@ -379,7 +384,7 @@ class VinculacionTest extends TestIntegracion {
                 .andExpect(status().isNoContent());
 
         mvc.perform(get("/api/atleta/entrenador").session(sesionAtleta))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNoContent());
     }
 
     @Test
@@ -567,7 +572,7 @@ class VinculacionTest extends TestIntegracion {
         mvc.perform(get("/api/entrenador/exatletas").session(sesionEntrenador))
                 .andExpect(jsonPath("$.length()").value(1));
         mvc.perform(get("/api/atleta/entrenador").session(sesionAtleta))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNoContent());
     }
 
     private int aceptar(MockHttpSession sesion, UUID idSolicitud) throws Exception {

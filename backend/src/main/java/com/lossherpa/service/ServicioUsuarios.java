@@ -28,7 +28,8 @@ public class ServicioUsuarios {
     @Transactional(readOnly = true)
     public Usuario autenticado() {
         return usuarios.findById(UsuarioActual.id())
-                .orElseThrow(RecursoNoEncontradoException::generico);
+                .orElseThrow(() -> RecursoNoEncontradoException.conMotivo(
+                        "el usuario de la sesion ya no existe"));
     }
 
     /** Exige que el usuario autenticado tenga el rol esperado (chequeo redundante a proposito). */
