@@ -10,7 +10,8 @@ type Estado<T> = {
 
 /**
  * Carga un recurso del backend y expone estado de carga, error y recarga.
- * Si el backend contesta 404 con `opcional`, se trata como "no hay dato" y no como error.
+ * Un 204 se expone como `datos: null` ("no hay dato"). Con `opcional`, un 404 tambien se
+ * trata como "no hay dato" y no como error.
  */
 export function useRecurso<T>(
   cargar: () => Promise<T>,
@@ -28,7 +29,8 @@ export function useRecurso<T>(
     setCargando(true)
     setError(null)
     try {
-      setDatos(await cargarMemo())
+      // El cliente devuelve undefined en un 204.
+      setDatos((await cargarMemo()) ?? null)
     } catch (e) {
       if (opciones.opcional === true && e instanceof ErrorApi && e.estado === 404) {
         setDatos(null)

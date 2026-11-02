@@ -59,7 +59,8 @@ public class ServicioRutinas {
     public Rutina verMiRutina(UUID idRutina) {
         servicioUsuarios.autenticadoConRol(Rol.ATLETA);
         return rutinas.buscarDeAtleta(idRutina, UsuarioActual.id())
-                .orElseThrow(RecursoNoEncontradoException::generico);
+                .orElseThrow(() -> rutinaDelAtletaNoEncontrada(
+                        rutinas, idRutina, UsuarioActual.id()));
     }
 
     @Transactional
@@ -97,17 +98,19 @@ public class ServicioRutinas {
                                    ActualizarRutinaRequest datos) {
         Usuario entrenador = servicioUsuarios.autenticadoConRol(Rol.ENTRENADOR);
         Rutina rutina = rutinas.buscarAsignadaDeEntrenador(idRutina, entrenador.getId())
-                .orElseThrow(RecursoNoEncontradoException::generico);
+                .orElseThrow(() -> rutinaAsignadaNoEncontrada(idRutina, entrenador.getId()));
 
         if (!rutina.getAtleta().getId().equals(idAtleta)) {
-            throw new RecursoNoEncontradoException("La rutina no pertenece a ese atleta");
+            throw new RecursoNoEncontradoException("La rutina no pertenece a ese atleta",
+                    "la rutina es de otro atleta del entrenador");
         }
         if (datos.tieneCamposNoPermitidos()) {
             throw new ReglaNegocioException(
                     "Los campos de autorizacion no son editables en la rutina");
         }
         if (rutina.archivada()) {
-            throw new RecursoNoEncontradoException("La rutina ya no existe o fue archivada");
+            throw new RecursoNoEncontradoException("La rutina ya no existe o fue archivada",
+                    "rutina archivada");
         }
         if (ejecuciones.existsByRutinaId(rutina.getId())) {
             throw new ConflictoException(
@@ -127,12 +130,45 @@ public class ServicioRutinas {
     public void eliminarAsignada(UUID idAtleta, UUID idRutina) {
         Usuario entrenador = servicioUsuarios.autenticadoConRol(Rol.ENTRENADOR);
         Rutina rutina = rutinas.buscarAsignadaDeEntrenador(idRutina, entrenador.getId())
-                .orElseThrow(RecursoNoEncontradoException::generico);
+                .orElseThrow(() -> rutinaAsignadaNoEncontrada(idRutina, entrenador.getId()));
 
         if (!rutina.getAtleta().getId().equals(idAtleta)) {
-            throw new RecursoNoEncontradoException("La rutina no pertenece a ese atleta");
+            throw new RecursoNoEncontradoException("La rutina no pertenece a ese atleta",
+                    "la rutina es de otro atleta del entrenador");
         }
         rutina.archivar();
+    }
+
+    /**
+     * RS12: motivo real del 404 de una rutina del atleta. La rutina se lee por id solo para
+     * elegir el texto de la auditoria; la respuesta al cliente es la misma en todos los casos.
+     */
+    static RecursoNoEncontradoException rutinaDelAtletaNoEncontrada(RutinaRepository rutinas,
+                                                                    UUID idRutina,
+                                                                    UUID idAtleta) {
+        String motivo = rutinas.findById(idRutina)
+                .map(r -> r.getAtleta().getId().equals(idAtleta)
+                        ? "rutina archivada"
+                        : "rutina de otro usuario")
+                .orElse("rutina inexistente");
+        return RecursoNoEncontradoException.conMotivo(motivo);
+    }
+
+    /** RS12: igual que la anterior, para la consulta del entrenador. */
+    private RecursoNoEncontradoException rutinaAsignadaNoEncontrada(UUID idRutina,
+                                                                    UUID idEntrenador) {
+        String motivo = rutinas.findById(idRutina)
+                .map(r -> {
+                    if (r.getEntrenadorCreador() == null
+                            || !r.getEntrenadorCreador().getId().equals(idEntrenador)) {
+                        return "rutina no asignada por el entrenador";
+                    }
+                    return r.archivada()
+                            ? "rutina archivada"
+                            : "sin vinculo vigente con el atleta de la rutina";
+                })
+                .orElse("rutina inexistente");
+        return RecursoNoEncontradoException.conMotivo(motivo);
     }
 
     private Rutina armar(Rutina rutina, CrearRutinaRequest datos) {

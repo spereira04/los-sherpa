@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -83,7 +84,10 @@ public class ServicioVinculacion {
         // El destinatario tiene que existir y ser entrenador. Si no, 404 generico: no se
         // confirma la existencia de un usuario ajeno a partir de un id inventado (RS07).
         Usuario entrenador = usuarios.findByIdAndRol(idEntrenador, Rol.ENTRENADOR)
-                .orElseThrow(() -> new RecursoNoEncontradoException("El entrenador no existe"));
+                .orElseThrow(() -> new RecursoNoEncontradoException("El entrenador no existe",
+                        usuarios.existsById(idEntrenador)
+                                ? "el id no corresponde a un entrenador"
+                                : "entrenador inexistente"));
 
         if (solicitudes.existePendiente(atleta.getId(), entrenador.getId())) {
             throw new ConflictoException("Ya tenes una solicitud pendiente con ese entrenador");
@@ -99,7 +103,8 @@ public class ServicioVinculacion {
 
         SolicitudVinculacion solicitud = solicitudes
                 .buscarDeAtleta(idSolicitud, UsuarioActual.id())
-                .orElseThrow(RecursoNoEncontradoException::generico);
+                .orElseThrow(() -> RecursoNoEncontradoException.segun(
+                        solicitudes.existsById(idSolicitud), "solicitud"));
 
         if (!solicitud.estaPendiente()) {
             throw new ConflictoException("Esa solicitud ya no esta pendiente");
@@ -107,12 +112,14 @@ public class ServicioVinculacion {
         solicitud.resolver(EstadoSolicitud.CANCELADA);
     }
 
+    /**
+     * RS12: no tener entrenador es un estado valido, no un acceso denegado. Se devuelve vacio
+     * (204 en el controlador) para que la consulta no quede auditada como denegacion.
+     */
     @Transactional(readOnly = true)
-    public Vinculo miVinculoComoAtleta() {
+    public Optional<Vinculo> miVinculoComoAtleta() {
         servicioUsuarios.autenticadoConRol(Rol.ATLETA);
-        return vinculos.buscarActivoPorAtleta(UsuarioActual.id())
-                .orElseThrow(() -> new RecursoNoEncontradoException(
-                        "Todavia no tenes un entrenador"));
+        return vinculos.buscarActivoPorAtleta(UsuarioActual.id());
     }
 
     /** Cualquiera de los dos puede desvincular. Aca lo hace el atleta. */
@@ -147,7 +154,8 @@ public class ServicioVinculacion {
         // RS04: (id + entrenador autenticado). Una solicitud de otro entrenador da 404.
         SolicitudVinculacion solicitud = solicitudes
                 .buscarDeEntrenador(idSolicitud, entrenador.getId())
-                .orElseThrow(RecursoNoEncontradoException::generico);
+                .orElseThrow(() -> RecursoNoEncontradoException.segun(
+                        solicitudes.existsById(idSolicitud), "solicitud"));
 
         if (!solicitud.estaPendiente()) {
             throw new ConflictoException("Esa solicitud ya fue resuelta");
@@ -179,7 +187,8 @@ public class ServicioVinculacion {
 
         SolicitudVinculacion solicitud = solicitudes
                 .buscarDeEntrenador(idSolicitud, entrenador.getId())
-                .orElseThrow(RecursoNoEncontradoException::generico);
+                .orElseThrow(() -> RecursoNoEncontradoException.segun(
+                        solicitudes.existsById(idSolicitud), "solicitud"));
 
         if (!solicitud.estaPendiente()) {
             throw new ConflictoException("Esa solicitud ya fue resuelta");
@@ -227,6 +236,9 @@ public class ServicioVinculacion {
             throw new ReglaNegocioException("Falta el atleta");
         }
         return vinculos.buscarActivoPorEntrenadorYAtleta(idEntrenador, idAtleta)
-                .orElseThrow(RecursoNoEncontradoException::generico);
+                .orElseThrow(() -> RecursoNoEncontradoException.conMotivo(
+                        usuarios.existsById(idAtleta)
+                                ? "sin vinculo vigente con ese atleta"
+                                : "atleta inexistente"));
     }
 }

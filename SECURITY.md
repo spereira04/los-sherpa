@@ -6,7 +6,7 @@ lo cubren. En el código, cada punto está marcado con un comentario (`// RS04`,
 Las rutas de clases son relativas a `backend/src/main/java/com/lossherpa/` y las de tests a
 `backend/src/test/java/com/lossherpa/`.
 
-**Estado de la suite: 201 tests, todos en verde** (`cd backend && ./mvnw test`).
+**Estado de la suite: 253 tests, todos en verde** (`cd backend && ./mvnw test`).
 
 ---
 
@@ -57,7 +57,7 @@ por endpoint (método + patrón exacto). Lo que no está acá se deniega
 | GET | `/api/atleta/solicitudes` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
 | POST | `/api/atleta/solicitudes` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
 | POST | `/api/atleta/solicitudes/{idSolicitud}/cancelar` | ATLETA | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
-| GET | `/api/atleta/entrenador` | ATLETA | vínculo vigente | 401 sin sesión · 403 otro rol · 404 sin relación |
+| GET | `/api/atleta/entrenador` | ATLETA | vínculo vigente | 401 sin sesión · 403 otro rol · 204 sin entrenador (no se audita) |
 | DELETE | `/api/atleta/vinculo` | ATLETA | vínculo vigente | 401 sin sesión · 403 otro rol · 404 sin relación |
 | GET | `/api/entrenador/atletas` | ENTRENADOR | vínculo vigente | 401 sin sesión · 403 otro rol · 404 sin relación |
 | GET | `/api/entrenador/exatletas` | ENTRENADOR | dueño | 401 sin sesión · 403 otro rol · 404 sin relación |
@@ -552,6 +552,16 @@ del entry point, los 403 del access denied handler y los 404 por recurso ajeno d
 global. El `motivo` de un 403 es el que dio la política (`el endpoint exige el rol ATLETA`,
 `token CSRF invalido o ausente`).
 
+El `motivo` de un 404 es el real, aunque la respuesta al cliente sea siempre la misma (RS07):
+`RecursoNoEncontradoException` lleva el motivo aparte del mensaje. Cuando la consulta acotada al
+usuario no devuelve nada, el servicio consulta si el id existe **solo para elegir el texto del
+log**: `rutina inexistente`, `rutina de otro usuario`, `rutina archivada`,
+`sin vinculo vigente con ese atleta`, etc. Así un intento de IDOR se distingue de un id
+inventado sin reabrir la enumeración.
+
+**Decisión.** No tener entrenador es un estado válido, no una denegación:
+`GET /api/atleta/entrenador` responde 204 y no deja línea en la auditoría (SH-43).
+
 RF4 agrega `ejecucion_eliminada` (actor y UUID de ejecución) e
 `historico_ejecuciones_eliminado` (actor solamente). Ambos son eventos de operación exitosa
 y no incluyen cargas, repeticiones ni otros datos de la ejecución.
@@ -565,7 +575,8 @@ registra al crearlo.
 | `security/AuditorAcceso.java` | `denegado(...)`, `loginFallido(...)`, `sesionInvalidada(...)`, `ejecucionEliminada(...)`, `historicoEjecucionesEliminado(...)` |
 | `security/PuntoEntradaNoAutenticado.java` | 401 sin sesión |
 | `security/ManejadorAccesoDenegado.java` | 403 fuera de rol o CSRF inválido, con el motivo de la política |
-| `error/ManejadorGlobalErrores.java` | `noEncontrado(...)`: registra el 404 por recurso ajeno |
+| `error/ManejadorGlobalErrores.java` | `noEncontrado(...)`: registra el 404 con el motivo que trae la excepción |
+| `error/RecursoNoEncontradoException.java` | `conMotivo(...)`, `segun(existe, recurso)`: motivo real solo para la auditoría |
 | `security/FiltroSesionVigente.java` | registra la sesión invalidada |
 | `resources/logback-spring.xml` | logger `AUDITORIA` → `logs/auditoria.log`, patrón `%msg%n` |
 
@@ -580,6 +591,9 @@ y auditable en el código, al lado del saneado.
 | El acceso sin sesión se audita sin datos sensibles | `web/LoginSesionTest.elAccesoSinSesionSeAudita` |
 | El login fallido se registra con el email, nunca con la contraseña | `web/LoginSesionTest.elLoginFallidoSeLogueaSinLaContrasena` |
 | La sesión invalidada se audita sin email ni cookie | `web/AdminTest.laSesionInvalidadaSeAudita` |
+| Rutina inexistente y ajena: mismo 404, distinto motivo | `web/AuditoriaMotivoTest.rutinaInexistenteVsAjena` |
+| Rutina propia archivada, ejecución ajena, entrenador sin vínculo | `web/AuditoriaMotivoTest` |
+| Atleta sin entrenador: 204 sin línea de auditoría | `web/VinculacionTest.atletaSinEntrenador` |
 
 ---
 
