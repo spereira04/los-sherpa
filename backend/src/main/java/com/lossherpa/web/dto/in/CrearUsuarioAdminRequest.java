@@ -32,7 +32,7 @@ public record CrearUsuarioAdminRequest(
         String email,
 
         @NotEmpty(message = "La contrasena es obligatoria")
-        @Size(max = 128, message = "La contrasena no puede superar los 128 caracteres")
+        @Size(max = 72, message = "La contrasena no puede superar los 72 caracteres")
         char[] contrasena,
 
         @NotNull(message = "Hay que elegir entrenador o atleta")

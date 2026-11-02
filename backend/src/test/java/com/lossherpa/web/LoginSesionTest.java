@@ -68,6 +68,20 @@ class LoginSesionTest extends TestIntegracion {
     }
 
     @Test
+    @DisplayName("INC-3: una contrasena de mas de 72 bytes devuelve 401, no 500")
+    void contrasenaDemasiadoLargaDevuelve401() throws Exception {
+        // Empieza con la contrasena correcta: con BCrypt truncando, igual no tiene que entrar.
+        String larga = PASSWORD + "x".repeat(100 - PASSWORD.length());
+        for (String email : new String[] {"ana@test.com", "nadie@test.com"}) {
+            mvc.perform(post("/api/auth/login").with(csrf())
+                            .contentType(APPLICATION_JSON)
+                            .content(cuerpo(Map.of("email", email, "contrasena", larga))))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.error").value("Email o contrasena incorrectos"));
+        }
+    }
+
+    @Test
     @DisplayName("email inexistente devuelve el mismo mensaje: no revela si la cuenta existe")
     void emailInexistenteMismoMensaje() throws Exception {
         mvc.perform(post("/api/auth/login").with(csrf())

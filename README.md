@@ -232,7 +232,11 @@ Alineada con **ASVS v5**, que prioriza el largo por sobre las reglas de composic
 **Se exige:**
 
 - Mínimo **12 caracteres**.
-- Máximo **128 caracteres** (el techo evita un DoS al hashear).
+- Máximo **72 bytes en UTF-8**, que es lo máximo que procesa BCrypt. Sin tildes son 72
+  caracteres; las letras con tilde y la ñ ocupan 2 bytes y los emoji 4, así que con ellos
+  entran menos. Se mide sobre la contraseña ya normalizada (NFKC). Aplica también al alta
+  de usuarios por el admin y a `ADMIN_PASSWORD`. Un login con más de 72 bytes responde
+  401 sin llegar a BCrypt.
 - Que no esté en una lista de **~10.045 contraseñas filtradas conocidas**. La comparación no
   es solo por valor exacto: también se prueba la *raíz* de la contraseña, sacándole los
   dígitos y símbolos de los extremos, y se detecta la repetición de una misma palabra. Así

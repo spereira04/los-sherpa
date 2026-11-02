@@ -19,7 +19,8 @@ import java.time.LocalDate;
  * otra columna de autorizacion: lo que no esta aca no puede entrar (anti mass assignment).
  * El rol se limita a ENTRENADOR o ATLETA por el tipo RolRegistro.
  *
- * La contrasena solo se valida de largo maximo aca; la politica completa esta en
+ * La contrasena solo se valida de largo maximo aca (72 caracteres; el limite real son 72
+ * bytes UTF-8 y lo controla PoliticaContrasena). La politica completa esta en
  * PoliticaContrasena, para dar un mensaje util y no 400 generico.
  *
  * contrasena es char[] y no String: ServicioAutenticacion la borra de memoria apenas la usa
@@ -33,7 +34,7 @@ public record RegistroRequest(
         String email,
 
         @NotEmpty(message = "La contrasena es obligatoria")
-        @Size(max = 128, message = "La contrasena no puede superar los 128 caracteres")
+        @Size(max = 72, message = "La contrasena no puede superar los 72 caracteres")
         char[] contrasena,
 
         @NotNull(message = "Hay que elegir si te registras como entrenador o como atleta")

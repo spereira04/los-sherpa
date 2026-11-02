@@ -38,10 +38,42 @@ class PoliticaContrasenaTest {
     }
 
     @Test
-    @DisplayName("rechaza mas de 128 caracteres")
+    @DisplayName("rechaza mas de 72 bytes, el limite de BCrypt")
     void rechazaDemasiadoLarga() {
-        assertThatThrownBy(() -> politica.validar(("a".repeat(129) + "zq").toCharArray()))
-                .isInstanceOf(ReglaNegocioException.class);
+        String larga = "caminata larga por la montana nevada al amanecer con amigos y un termo"
+                + " de cafe caliente";
+        assertThat(larga).hasSize(87);
+        assertThatThrownBy(() -> politica.validar(larga.toCharArray()))
+                .isInstanceOf(ReglaNegocioException.class)
+                .hasMessageContaining("72 bytes");
+    }
+
+    @Test
+    @DisplayName("acepta exactamente 72 bytes")
+    void aceptaElLimiteExacto() {
+        String justa = "caminata larga por la montana nevada al amanecer con amigos y un termo!!";
+        assertThat(justa).hasSize(72);
+        assertThatCode(() -> politica.validar(justa.toCharArray())).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("cuenta bytes y no caracteres: con tildes, enie y emoji el limite es menor")
+    void cuentaBytesNoCaracteres() {
+        // 68 caracteres pero 77 bytes: cada tilde y la enie ocupan 2 y los simbolos 3.
+        String conAcentos = "caminata larga por la montaña nevada al amanecer con amigos ⛰️ ✨ é á";
+        assertThat(conAcentos.length()).isLessThan(72);
+        assertThat(conAcentos.getBytes(java.nio.charset.StandardCharsets.UTF_8).length)
+                .isGreaterThan(72);
+        assertThatThrownBy(() -> politica.validar(conAcentos.toCharArray()))
+                .isInstanceOf(ReglaNegocioException.class)
+                .hasMessageContaining("72 bytes");
+
+        String conEmoji = "subimos el cerro al amanecer " + "🏔".repeat(11);
+        assertThat(conEmoji.getBytes(java.nio.charset.StandardCharsets.UTF_8)).hasSize(73);
+        assertThat(PoliticaContrasena.superaLargoMaximo(conEmoji.toCharArray())).isTrue();
+        String conEmojiJusto = "subimos el cerro al amanecer " + "🏔".repeat(10) + "!!!";
+        assertThat(conEmojiJusto.getBytes(java.nio.charset.StandardCharsets.UTF_8)).hasSize(72);
+        assertThat(PoliticaContrasena.superaLargoMaximo(conEmojiJusto.toCharArray())).isFalse();
     }
 
     @Test

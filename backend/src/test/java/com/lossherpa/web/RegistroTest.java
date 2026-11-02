@@ -229,6 +229,54 @@ class RegistroTest extends TestIntegracion {
     }
 
     @Test
+    @DisplayName("INC-3: una contrasena de mas de 72 bytes da 400 con el limite real, no 500")
+    void contrasenaDeMasDe72BytesDa400() throws Exception {
+        // 87 caracteres ASCII: entra en el viejo tope de 128 pero BCrypt no la soporta.
+        Map<String, Object> datos = registroAtleta();
+        datos.put("contrasena", "caminata larga por la montana nevada al amanecer con amigos"
+                + " y un termo de cafe caliente");
+
+        mvc.perform(post("/api/auth/registro").with(csrf())
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(datos)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.campos.contrasena").value(
+                        org.hamcrest.Matchers.containsString("72")));
+
+        // Menos de 72 caracteres pero mas de 72 bytes por las tildes, la enie y los emoji.
+        datos.put("contrasena", "caminata larga por la montaña nevada al amanecer con amigos"
+                + " 🏔🏔 ñandú");
+
+        mvc.perform(post("/api/auth/registro").with(csrf())
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(datos)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(
+                        org.hamcrest.Matchers.containsString("72 bytes")));
+
+        assertThat(usuarios.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("INC-3: una contrasena de exactamente 72 bytes se registra y permite loguearse")
+    void contrasenaDe72BytesSeRegistra() throws Exception {
+        String contrasena = "caminata larga por la montana nevada al amanecer con amigos y un termo!!";
+        Map<String, Object> datos = registroAtleta();
+        datos.put("contrasena", contrasena);
+
+        mvc.perform(post("/api/auth/registro").with(csrf())
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(datos)))
+                .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/auth/login").with(csrf())
+                        .contentType(APPLICATION_JSON)
+                        .content(cuerpo(Map.of("email", "nuevo.atleta@test.com",
+                                "contrasena", contrasena))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("un atleta no puede mandar anos de servicio")
     void atletaNoPuedeMandarAniosServicio() throws Exception {
         Map<String, Object> datos = registroAtleta();

@@ -22,7 +22,12 @@ import java.util.Set;
  * Politica de contrasenas alineada con ASVS v5 (capitulo de autenticacion).
  *
  * Reglas:
- *  - Largo minimo 12 caracteres y maximo 128 (el maximo evita DoS al hashear).
+ *  - Largo minimo 12 caracteres y maximo 72 bytes en UTF-8, medidos sobre la contrasena ya
+ *    normalizada. 72 bytes es lo maximo que procesa BCrypt: las versiones nuevas de
+ *    spring-security-crypto lanzan IllegalArgumentException y las viejas truncan en silencio,
+ *    asi que hay que cortarlo aca con un mensaje claro. Sin tildes son 72 caracteres; las
+ *    letras con tilde y la enie ocupan 2 bytes y los emoji 4. Se descarto aplicar un prehash
+ *    antes de BCrypt porque invalidaria los hashes ya guardados.
  *  - Sin reglas de composicion arbitrarias: no se exigen mayusculas, digitos ni simbolos.
  *  - Se acepta cualquier caracter Unicode, incluidos espacios y emoji. Se normaliza a NFKC
  *    para que la misma frase tecleada distinto siga validando.
@@ -36,7 +41,8 @@ import java.util.Set;
 public class PoliticaContrasena {
 
     public static final int LARGO_MINIMO = 12;
-    public static final int LARGO_MAXIMO = 128;
+    /** Limite de BCrypt, en bytes UTF-8 (no en caracteres). */
+    public static final int LARGO_MAXIMO_BYTES = 72;
 
     private static final String ARCHIVO_COMUNES = "seguridad/contrasenas-comunes.txt";
     private static final int LARGO_MINIMO_FRAGMENTO_USUARIO = 4;
@@ -72,9 +78,11 @@ public class PoliticaContrasena {
                 throw new ReglaNegocioException(
                         "La contrasena debe tener al menos " + LARGO_MINIMO + " caracteres");
             }
-            if (normalizada.length > LARGO_MAXIMO) {
+            if (superaLargoMaximo(normalizada)) {
                 throw new ReglaNegocioException(
-                        "La contrasena no puede superar los " + LARGO_MAXIMO + " caracteres");
+                        "La contrasena no puede superar los " + LARGO_MAXIMO_BYTES + " bytes: sin"
+                        + " tildes son " + LARGO_MAXIMO_BYTES + " caracteres, pero las letras con"
+                        + " tilde y la enie ocupan 2 bytes y los emoji 4");
             }
             if (unSoloCaracterRepetido(normalizada)) {
                 throw new ReglaNegocioException(
@@ -115,11 +123,46 @@ public class PoliticaContrasena {
         return normalizada.toCharArray();
     }
 
+    /**
+     * true si la contrasena (ya normalizada) supera lo que BCrypt puede hashear. Lo usa
+     * tambien el login: ninguna cuenta puede tener una contrasena asi, y pasarsela al encoder
+     * terminaria en un 500 o, con versiones viejas, en una comparacion truncada.
+     */
+    public static boolean superaLargoMaximo(char[] normalizada) {
+        return bytesUtf8(normalizada) > LARGO_MAXIMO_BYTES;
+    }
+
+    /**
+     * Cuenta los bytes UTF-8 sin codificar la contrasena, para no dejar otra copia en memoria.
+     * Un surrogate suelto se cuenta como 3 bytes (la JDK lo reemplaza por '?', 1 byte): se
+     * sobreestima a proposito, nunca se subestima.
+     */
+    private static int bytesUtf8(char[] contrasena) {
+        int bytes = 0;
+        for (int i = 0; i < contrasena.length; i++) {
+            char caracter = contrasena[i];
+            if (caracter < 0x80) {
+                bytes += 1;
+            } else if (caracter < 0x800) {
+                bytes += 2;
+            } else if (Character.isHighSurrogate(caracter) && i + 1 < contrasena.length
+                    && Character.isLowSurrogate(contrasena[i + 1])) {
+                bytes += 4;
+                i++;
+            } else {
+                bytes += 3;
+            }
+        }
+        return bytes;
+    }
+
     /** Descripcion de la politica, para mostrarla en el formulario de registro. */
     public String descripcion() {
-        return "Minimo " + LARGO_MINIMO + " caracteres, maximo " + LARGO_MAXIMO
-                + ". Se aceptan espacios y cualquier simbolo. No se admiten contrasenas"
-                + " muy usadas ni que contengan tu email, nombre o apellido.";
+        return "Minimo " + LARGO_MINIMO + " caracteres, maximo " + LARGO_MAXIMO_BYTES
+                + " bytes (" + LARGO_MAXIMO_BYTES + " caracteres sin tildes; las letras con"
+                + " tilde y la enie cuentan doble y los emoji cuadruple). Se aceptan espacios y"
+                + " cualquier simbolo. No se admiten contrasenas muy usadas ni que contengan tu"
+                + " email, nombre o apellido.";
     }
 
     /**
