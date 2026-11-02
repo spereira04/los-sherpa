@@ -58,12 +58,16 @@ public class SecurityConfig {
 
     private final String[] origenesCors;
     private final int costoBcrypt;
+    private final boolean cookieSecure;
 
     public SecurityConfig(@Value("${sherpa.cors.origenes:http://localhost:5173}")
                           String origenesCors,
-                          @Value("${sherpa.seguridad.costo-bcrypt:12}") int costoBcrypt) {
+                          @Value("${sherpa.seguridad.costo-bcrypt:12}") int costoBcrypt,
+                          @Value("${COOKIE_SECURE:${server.servlet.session.cookie.secure:false}}")
+                          boolean cookieSecure) {
         this.origenesCors = origenesCors.split("\\s*,\\s*");
         this.costoBcrypt = costoBcrypt;
+        this.cookieSecure = cookieSecure;
     }
 
     /**
@@ -205,8 +209,11 @@ public class SecurityConfig {
                     .frameOptions(frame -> frame.deny())
                     .referrerPolicy(ref -> ref.policy(
                             ReferrerPolicyHeaderWriter.ReferrerPolicy.SAME_ORIGIN))
-                    // Sin TLS en local: HSTS se habilita recien al publicar con https.
-                    .httpStrictTransportSecurity(hsts -> hsts.disable())
+                    // Sin TLS en local: HSTS se activa al servir por https o con COOKIE_SECURE=true.
+                    .httpStrictTransportSecurity(hsts -> hsts
+                            .includeSubDomains(true)
+                            .maxAgeInSeconds(31536000)
+                            .requestMatcher(req -> req.isSecure() || cookieSecure))
                     .permissionsPolicy(pp -> pp.policy(
                             "geolocation=(), camera=(), microphone=(), payment=()")))
 
