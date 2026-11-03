@@ -2,7 +2,7 @@ package com.lossherpa.config;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
-import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -39,7 +39,8 @@ public class ControladorSpa {
         return ResponseEntity.ok()
                 .contentType(MediaType.TEXT_HTML)
                 // El index no se cachea para que un deploy nuevo no quede pegado.
-                .cacheControl(CacheControl.noStore())
+                // OSHP pide exactamente "no-store, max-age=0" (CacheControl.noStore() emite solo no-store).
+                .header(HttpHeaders.CACHE_CONTROL, "no-store, max-age=0")
                 .body(INDEX);
     }
 }

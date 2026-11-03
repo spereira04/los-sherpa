@@ -33,7 +33,11 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.authentication.logout.HeaderWriterLogoutHandler;
+import org.springframework.security.web.header.writers.ClearSiteDataHeaderWriter;
+import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.header.writers.StaticHeadersWriter;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -55,6 +59,16 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    /** Lista completa de OSHP: todas las funciones del navegador apagadas salvo sync-xhr del propio origen. */
+    private static final String PERMISSIONS_POLICY = String.join(", ",
+            "accelerometer=()", "autoplay=()", "camera=()", "cross-origin-isolated=()",
+            "display-capture=()", "encrypted-media=()", "fullscreen=()", "geolocation=()",
+            "gyroscope=()", "keyboard-map=()", "magnetometer=()", "microphone=()", "midi=()",
+            "payment=()", "picture-in-picture=()", "publickey-credentials-get=()",
+            "screen-wake-lock=()", "sync-xhr=(self)", "usb=()", "web-share=()",
+            "xr-spatial-tracking=()", "clipboard-read=()", "clipboard-write=()", "gamepad=()",
+            "hid=()", "idle-detection=()", "interest-cohort=()", "serial=()", "unload=()");
 
     private final String[] origenesCors;
     private final int costoBcrypt;
@@ -181,6 +195,13 @@ public class SecurityConfig {
                     .invalidateHttpSession(true)
                     .clearAuthentication(true)
                     .deleteCookies("SHERPASESSION", "XSRF-TOKEN")
+                    // OSHP: al cerrar sesion el navegador borra cache, cookies y storage.
+                    // Solo en el logout: en cualquier otra respuesta rompería la sesion.
+                    .addLogoutHandler(new HeaderWriterLogoutHandler(
+                            new ClearSiteDataHeaderWriter(
+                                    ClearSiteDataHeaderWriter.Directive.CACHE,
+                                    ClearSiteDataHeaderWriter.Directive.COOKIES,
+                                    ClearSiteDataHeaderWriter.Directive.STORAGE)))
                     .logoutSuccessHandler((req, res, auth) -> {
                         // RS12: auth es null si la sesion ya habia expirado.
                         String id = auth != null && auth.getPrincipal() instanceof UsuarioAutenticado u
@@ -208,14 +229,20 @@ public class SecurityConfig {
                             + "object-src 'none'"))
                     .frameOptions(frame -> frame.deny())
                     .referrerPolicy(ref -> ref.policy(
-                            ReferrerPolicyHeaderWriter.ReferrerPolicy.SAME_ORIGIN))
+                            ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
                     // Sin TLS en local: HSTS se activa al servir por https o con COOKIE_SECURE=true.
-                    .httpStrictTransportSecurity(hsts -> hsts
-                            .includeSubDomains(true)
-                            .maxAgeInSeconds(31536000)
-                            .requestMatcher(req -> req.isSecure() || cookieSecure))
-                    .permissionsPolicy(pp -> pp.policy(
-                            "geolocation=(), camera=(), microphone=(), payment=()")))
+                    // Spring escribe "max-age=31536000 ; includeSubDomains" (espacio antes del ;).
+                    // OSHP exige el texto exacto "max-age=31536000; includeSubDomains", asi que
+                    // se emite con un writer propio con la misma condicion.
+                    .httpStrictTransportSecurity(hsts -> hsts.disable())
+                    .addHeaderWriter(new DelegatingRequestMatcherHeaderWriter(
+                            req -> req.isSecure() || cookieSecure,
+                            new StaticHeadersWriter("Strict-Transport-Security",
+                                    "max-age=31536000; includeSubDomains")))
+                    // OSHP: ningun plugin (Flash/PDF) puede leer datos de este dominio.
+                    .addHeaderWriter(new StaticHeadersWriter(
+                            "X-Permitted-Cross-Domain-Policies", "none"))
+                    .permissionsPolicy(pp -> pp.policy(PERMISSIONS_POLICY)))
 
             .authorizeHttpRequests(auth -> {
                 // RS01: primer punto de aplicacion de la politica. Una regla por endpoint,

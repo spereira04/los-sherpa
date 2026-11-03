@@ -128,7 +128,7 @@ class EstaticosTest extends TestIntegracion {
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(header().string("X-Frame-Options", "DENY"))
-                .andExpect(header().string("Referrer-Policy", "same-origin"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
                 .andExpect(header().string("Strict-Transport-Security",
                         org.hamcrest.Matchers.allOf(
                                 org.hamcrest.Matchers.containsString("max-age=31536000"),

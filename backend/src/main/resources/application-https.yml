@@ -1,0 +1,16 @@
+# Perfil "https": sirve la app por TLS con un keystore PKCS12.
+# Se activa con SPRING_PROFILES_ACTIVE=https. El keystore (autofirmado) lo genera el Dockerfile;
+# no se versiona ningun certificado ni clave en el repo.
+server:
+  port: ${SERVER_PORT:8443}
+  ssl:
+    enabled: true
+    key-store: ${SSL_KEYSTORE:/app/tls/keystore.p12}
+    key-store-type: PKCS12
+    key-store-password: ${SSL_KEYSTORE_PASSWORD}
+    key-alias: sherpa
+
+  servlet:
+    session:
+      cookie:
+        secure: true
