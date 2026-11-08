@@ -52,9 +52,13 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    // Check if you are in a test profile or a development profile
+    @Value("${spring.profiles.active:prod}")
+    private String activeProfile;
+
     /** Rutas del SPA que deben devolver index.html. Todo lo demas se deniega (RS13). */
     static final String[] RUTAS_SPA = {
-            "/", "/index.html", "/favicon.ico", "/assets/**",
+            "/", "/index.html", "/favicon.ico", "/assets/**", "/prueba/**",
             "/login", "/registro",
             "/entrenador", "/entrenador/**",
             "/atleta", "/atleta/**",
@@ -161,9 +165,14 @@ public class SecurityConfig {
 
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(csrf -> csrf
-                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                    .csrfTokenRequestHandler(manejadorCsrf))
+            .csrf(csrf -> {
+                if ("dev".equals(activeProfile)) {
+                    csrf.disable();
+                } else {
+                    csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                            .csrfTokenRequestHandler(manejadorCsrf);
+                }
+            })
             .securityContext(ctx -> ctx.securityContextRepository(contextRepository))
             .sessionManagement(sesion -> sesion
                     .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
